@@ -1,0 +1,131 @@
+---
+title: MCP Generator
+---
+
+import { Cards } from 'nextra/components'
+
+# MCP Generator
+
+The **stellar-mcp-generator** is a Stellar CLI plugin that generates complete MCP (Model Context Protocol) servers from deployed Soroban smart contracts. It enables AI agents like Claude to interact with your smart contracts through standardized MCP tools.
+
+## What It Does
+
+Given a deployed Soroban contract, the generator:
+
+1. **Fetches the contract specification** from the blockchain
+2. **Parses all public functions** and their parameter types
+3. **Generates a complete MCP server** with type-safe tool implementations
+4. **Creates utility functions** for transaction signing and submission
+5. **Produces TypeScript bindings** using the official Stellar SDK
+
+## Supported Languages
+
+| Language | Framework | Features |
+|----------|-----------|----------|
+| **TypeScript** | MCP SDK | Full PasskeyKit support, deploy-wallet script |
+| **Python** | FastMCP | Async/await, automatic type conversion |
+
+## Key Features
+
+### Automatic Tool Generation
+
+Every public function in your Soroban contract becomes an MCP tool:
+
+```
+Contract Function: set_allowlist_wasm(admin: Address, wasm_hash: BytesN<32>)
+                            ↓
+MCP Tool: set-allowlist-wasm
+  - Validates inputs with Zod schemas
+  - Builds unsigned transaction XDR
+  - Returns XDR for signing
+```
+
+### Transaction Signing Utilities
+
+Generated servers include robust signing utilities:
+
+- **signTransaction()** - Signs with keypair, handles sequence staleness
+- **signAndSendWithPasskey()** - Full PasskeyKit smart wallet integration
+- **submitTransaction()** - Submits and polls for results
+
+### Official Stellar Bindings
+
+Uses `stellar contract bindings typescript` to generate type-safe contract clients:
+
+```typescript
+// Auto-generated in src/bindings/
+export interface Client {
+  set_allowlist_wasm: (params, options?) => Promise<AssembledTransaction<null>>
+  deploy_token: (params, options?) => Promise<AssembledTransaction<TokenInfo>>
+  // ... all contract functions
+}
+```
+
+## Quick Example
+
+```bash
+# Generate a TypeScript MCP server
+stellar mcp generate \
+  --contract-id CAHLJEQUCNTV7JPAPCMLCBIHOX7FFB57DUARJ6XGTW27FPCVKKY7JM2A \
+  --network testnet \
+  --output my-token-mcp
+
+# Install and build
+cd my-token-mcp
+pnpm install
+pnpm build
+
+# Run the server
+pnpm start
+```
+
+The server exposes your contract functions as MCP tools that Claude can use.
+
+## Generated Project Structure
+
+```
+my-token-mcp/
+├── src/
+│   ├── index.ts           # MCP server with all tools
+│   ├── lib/
+│   │   ├── utils.ts       # signTransaction()
+│   │   ├── passkey.ts     # signAndSendWithPasskey()
+│   │   ├── submit.ts      # submitTransaction()
+│   │   └── transaction.ts # parseTransactionResult()
+│   ├── tools/             # Contract function handlers
+│   ├── schemas/           # Zod validation schemas
+│   └── bindings/          # Official Stellar TypeScript bindings
+├── deploy-wallet.ts       # PasskeyKit wallet deployment
+├── package.json
+├── tsconfig.json
+└── .env.example
+```
+
+## How It Works
+
+```
+Deployed Contract (on Stellar)
+        ↓
+stellar mcp generate --contract-id ...
+        ↓
+Fetch Contract Spec (via RPC)
+        ↓
+Parse Functions & Types
+        ↓
+Generate Code from Templates
+        ↓
+Run stellar contract bindings typescript
+        ↓
+Complete MCP Server Project
+```
+
+## Documentation Sections
+
+<Cards>
+  <Cards.Card title="CLI Reference" href="/mcp-generator/cli-reference" />
+  <Cards.Card title="Interactive Wizard" href="/mcp-generator/wizard" />
+  <Cards.Card title="TypeScript Server" href="/mcp-generator/typescript-server" />
+  <Cards.Card title="Python Server" href="/mcp-generator/python-server" />
+  <Cards.Card title="Transaction Signing" href="/mcp-generator/transaction-signing" />
+  <Cards.Card title="PasskeyKit Integration" href="/mcp-generator/passkey-integration" />
+</Cards>

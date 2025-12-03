@@ -1,0 +1,261 @@
+---
+title: TypeScript Bindings
+---
+
+# TypeScript Bindings
+
+After running `make bindings`, a TypeScript SDK is generated for your policy contract.
+
+## Generation
+
+```bash
+# Build contract first
+make build
+
+# Generate bindings
+make bindings
+
+# Install SDK dependencies
+cd my-policy-sdk
+pnpm install
+pnpm build
+```
+
+## Generated SDK Structure
+
+```
+my-policy-sdk/
+├── src/
+│   └── index.ts        # Generated client
+├── dist/
+│   ├── index.js        # Compiled JavaScript
+│   └── index.d.ts      # Type definitions
+├── package.json
+└── tsconfig.json
+```
+
+## Fix Script
+
+The `scripts/fix-bindings.sh` script adds missing type definitions:
+
+```bash
+#!/bin/bash
+# Adds SignerKey and Context types to generated bindings
+
+SDK_DIR=$1
+INDEX_FILE="$SDK_DIR/src/index.ts"
+
+# Find insertion point (after "export * as rpc")
+# Insert SignerKey and Context types
+```
+
+### Why Is This Needed?
+
+The `smart-wallet-interface` contract has `export = false` on SignerKey, which prevents the Stellar CLI from including it in bindings. The fix script adds:
+
+```typescript
+export type SignerKey =
+  | { tag: "Policy", values: readonly [string] }
+  | { tag: "Ed25519", values: readonly [Buffer] }
+  | { tag: "Secp256r1", values: readonly [Buffer] };
+
+export type Context = any;
+```
+
+## Client Interface
+
+The generated SDK provides a typed client:
+
+```typescript
+import { Client } from './my-policy-sdk';
+
+export interface Client {
+    // Initialize policy with admin
+    init: (options: {
+        admin: string
+    }) => Promise<AssembledTransaction<null>>
+
+    // Add wallet with limits
+    add_wallet: (options: {
+        user: Buffer,
+        max_amount: i128,
+        min_ledgers: u32,
+    }) => Promise<AssembledTransaction<null>>
+
+    // Policy validation (called by smart wallet)
+    policy__: (options: {
+        source: string,
+        signer: SignerKey,
+        contexts: Array<Context>,
+    }) => Promise<AssembledTransaction<null>>
+}
+```
+
+## Usage Example
+
+```typescript
+import { Client } from './my-policy-sdk';
+import { Networks, Keypair } from '@stellar/stellar-sdk';
+
+// Create client
+const client = new Client({
+    contractId: 'CDXYZ...',
+    networkPassphrase: Networks.TESTNET,
+    rpcUrl: 'https://soroban-testnet.stellar.org',
+});
+
+// Initialize with admin
+async function initializePolicy(adminSecret: string) {
+    const keypair = Keypair.fromSecret(adminSecret);
+
+    const tx = await client.init({
+        admin: keypair.publicKey()
+    });
+
+    // Sign and submit
+    tx.sign(keypair);
+    const result = await tx.submit();
+
+    console.log('Policy initialized');
+}
+
+// Add wallet with limits
+async function addWallet(
+    adminSecret: string,
+    userPublicKey: string,
+    maxAmount: bigint,
+    minLedgers: number
+) {
+    const keypair = Keypair.fromSecret(adminSecret);
+
+    const tx = await client.add_wallet({
+        user: Buffer.from(userPublicKey, 'hex'),
+        max_amount: maxAmount,
+        min_ledgers: minLedgers,
+    });
+
+    tx.sign(keypair);
+    await tx.submit();
+
+    console.log('Wallet added with limits');
+}
+```
+
+## Integration with Smart Wallets
+
+Use `SignerKey.Policy` to attach the policy to a signer:
+
+```typescript
+import { PasskeyKit } from 'passkey-kit';
+
+// Get policy contract ID
+const policyContractId = 'CDXYZ...';
+
+// Configure signer with policy
+const signerConfig = {
+    limits: new Map([
+        [
+            targetContractAddress,
+            [{ tag: 'Policy', values: [policyContractId] }]
+        ]
+    ])
+};
+
+// Update smart wallet signer
+await passkey.updateEd25519Signer(publicKey, signerConfig);
+```
+
+## Type Definitions
+
+### SignerKey
+
+```typescript
+type SignerKey =
+    | { tag: "Policy", values: readonly [string] }    // Policy contract ID
+    | { tag: "Ed25519", values: readonly [Buffer] }   // 32-byte public key
+    | { tag: "Secp256r1", values: readonly [Buffer] } // 33-byte secp256r1 key
+```
+
+### StorageKey
+
+```typescript
+type StorageKey =
+    | { tag: "Admin", values: void }
+    | { tag: "Previous", values: readonly [Buffer] }   // Rate limiting
+    | { tag: "Limits", values: readonly [Buffer] }     // Amount caps
+    | { tag: "MinLedgers", values: readonly [Buffer] } // Rate limits
+```
+
+### Errors
+
+```typescript
+const Errors = {
+    1: { message: "AlreadyInitialized" },
+    2: { message: "NotInitialized" },
+    4: { message: "NotAllowed" },
+    5: { message: "TooSoon" },
+    6: { message: "TooMuch" },
+};
+```
+
+## Full Integration Example
+
+```typescript
+// examples/typescript-integration.ts
+import { Client } from '../my-policy-sdk/dist/index.js';
+import { Networks, Keypair } from '@stellar/stellar-sdk';
+
+const POLICY_CONTRACT_ID = process.env.POLICY_CONTRACT_ID!;
+const ADMIN_SECRET = process.env.ADMIN_SECRET!;
+const RPC_URL = 'https://soroban-testnet.stellar.org';
+
+async function main() {
+    // Create client
+    const client = new Client({
+        contractId: POLICY_CONTRACT_ID,
+        networkPassphrase: Networks.TESTNET,
+        rpcUrl: RPC_URL,
+    });
+
+    const adminKeypair = Keypair.fromSecret(ADMIN_SECRET);
+
+    // Step 1: Initialize policy
+    console.log('Initializing policy...');
+    const initTx = await client.init({
+        admin: adminKeypair.publicKey()
+    });
+    initTx.sign(adminKeypair);
+    await initTx.submit();
+    console.log('✅ Policy initialized');
+
+    // Step 2: Add a wallet with limits
+    const userPublicKey = 'abc123...'; // 32-byte hex public key
+    console.log('Adding wallet...');
+    const addTx = await client.add_wallet({
+        user: Buffer.from(userPublicKey, 'hex'),
+        max_amount: 10000000n,  // 1 XLM
+        min_ledgers: 100,       // ~8 minutes
+    });
+    addTx.sign(adminKeypair);
+    await addTx.submit();
+    console.log('✅ Wallet added');
+
+    console.log('Policy setup complete!');
+}
+
+main().catch(console.error);
+```
+
+## Running the Example
+
+```bash
+# Set environment variables
+export POLICY_CONTRACT_ID=CDXYZ...
+export ADMIN_SECRET=SABC...
+
+# Install dependencies
+pnpm install
+
+# Run example
+pnpm example
+```

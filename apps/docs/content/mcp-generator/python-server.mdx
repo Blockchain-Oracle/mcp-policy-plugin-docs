@@ -1,0 +1,343 @@
+---
+title: Python Server
+---
+
+# Python Server
+
+When generating with `--lang python`, the MCP Generator creates a Python project using FastMCP.
+
+## Generated Structure
+
+```
+mcp-server/
+├── server.py                 # Main MCP server entry point
+├── src/
+│   ├── __init__.py
+│   ├── contract_client.py    # Contract client wrapper
+│   ├── lib/
+│   │   ├── __init__.py
+│   │   ├── utils.py          # sign_transaction()
+│   │   └── submit.py         # submit_transaction()
+│   └── bindings/
+│       └── bindings.py       # Auto-generated contract bindings
+├── pyproject.toml
+├── .env.example
+├── README.md
+└── uv.lock
+```
+
+## Entry Point (server.py)
+
+The main server uses FastMCP with async/await:
+
+```python
+from mcp.server.fastmcp import FastMCP, Context
+from typing import Optional, Dict, Any
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+# Initialize MCP server
+mcp = FastMCP("mcp-server")
+
+# Configuration
+config = ContractConfig(
+    contract_id=os.getenv("CONTRACT_ID"),
+    rpc_url=os.getenv("RPC_URL"),
+    network_passphrase=os.getenv("NETWORK_PASSPHRASE")
+)
+
+client = ContractClient(config)
+
+# Register tools
+@mcp.tool()
+async def set_allowlist_wasm(
+    admin: str,
+    wasm_hash: bytes,
+    ctx: Optional[Context] = None
+) -> Dict[str, Any]:
+    """Set WASM hash for Allowlist token type
+
+    Arguments:
+    * admin - Admin address (for authorization)
+    * wasm_hash - WASM hash of the contract
+    """
+    if ctx:
+        await ctx.info("Calling set_allowlist_wasm...")
+
+    result = await client.set_allowlist_wasm(
+        admin=admin,
+        wasm_hash=wasm_hash,
+    )
+
+    if ctx:
+        await ctx.info("Successfully called set_allowlist_wasm")
+
+    return result
+
+# Run server
+if __name__ == "__main__":
+    mcp.run()
+```
+
+## Tool Registration Pattern
+
+Each contract function becomes an async MCP tool:
+
+```python
+@mcp.tool()
+async def function_name(
+    param1: str,
+    param2: int,
+    ctx: Optional[Context] = None  # For logging
+) -> Dict[str, Any]:
+    """Docstring becomes tool description"""
+    result = await client.function_name(param1=param1, param2=param2)
+    return result
+```
+
+### Context Logging
+
+The optional `ctx` parameter enables logging to Claude:
+
+```python
+if ctx:
+    await ctx.info("Starting operation...")    # Info message
+    await ctx.error("Operation failed")        # Error message
+```
+
+## Contract Client (src/contract_client.py)
+
+Wraps the generated bindings with MCP-friendly types:
+
+```python
+@dataclass
+class ContractConfig:
+    contract_id: str
+    rpc_url: str
+    network_passphrase: str
+
+class ContractClient:
+    def __init__(self, config: ContractConfig):
+        self.config = config
+        self.client = GeneratedClient(
+            contract_id=config.contract_id,
+            rpc_url=config.rpc_url,
+            network_passphrase=config.network_passphrase
+        )
+
+    async def set_allowlist_wasm(
+        self,
+        admin: str,
+        wasm_hash: bytes
+    ) -> Dict[str, Any]:
+        # Convert MCP params to Stellar SDK types
+        params = convert_mcp_params({
+            "admin": admin,
+            "wasm_hash": wasm_hash,
+        })
+
+        # Call generated bindings
+        assembled = await self.client.set_allowlist_wasm(**params)
+
+        # Return XDR and simulation result
+        return {
+            "xdr": assembled.to_xdr(),
+            "simulationResult": serialize_result(assembled.result())
+        }
+```
+
+## Type Conversions
+
+The `convert_mcp_params()` function handles type conversions:
+
+| MCP Input | Python/Stellar Type |
+|-----------|---------------------|
+| Hex string | `bytes` |
+| Numeric string | `int` |
+| `None` | `None` (Python native) |
+| Enum dict `{"tag": "Variant"}` | Enum instance |
+| Struct dict | Dataclass instance |
+
+Example conversions:
+
+```python
+def convert_mcp_params(obj: Any) -> Any:
+    # Hex strings → bytes
+    if isinstance(obj, str) and len(obj) == 64:
+        return bytes.fromhex(obj)
+
+    # Numeric strings → int
+    if key in ['amount', 'supply', 'cap']:
+        return int(obj)
+
+    # Enum dicts → enum instances
+    if 'tag' in obj:
+        return TokenType(kind=TokenTypeKind[obj['tag']])
+```
+
+## Result Serialization
+
+The `serialize_result()` function converts Stellar types to JSON:
+
+```python
+def serialize_result(result: Any) -> Any:
+    # Python Enum → string
+    if isinstance(result, Enum):
+        return result.value
+
+    # stellar_sdk.Address → string
+    if result.__class__.__name__ == 'Address':
+        return result.address
+
+    # Dataclass → dict
+    if hasattr(result, '__dataclass_fields__'):
+        return serialize_result(asdict(result))
+
+    # bytes → hex string
+    if isinstance(result, bytes):
+        return result.hex()
+```
+
+## Signing Utilities (src/lib/utils.py)
+
+```python
+async def sign_transaction(
+    xdr: str,
+    secret_key: Optional[str] = None
+) -> str:
+    """
+    Sign transaction with sequence staleness handling
+
+    Steps:
+    1. Parse original transaction
+    2. Fetch fresh account (current sequence)
+    3. Rebuild with fresh sequence
+    4. Re-simulate for fresh resources
+    5. Sign envelope
+    6. Return signed XDR
+    """
+    key = secret_key or os.getenv("SIGNER_SECRET")
+    keypair = Keypair.from_secret(key)
+    server = SorobanServer(rpc_url)
+
+    # Parse original
+    original_tx = TransactionBuilder.from_xdr(xdr, network_passphrase)
+    operation = original_tx.transaction.operations[0]
+
+    # Rebuild with fresh sequence
+    source_account = server.load_account(keypair.public_key)
+    rebuilt_tx = (
+        TransactionBuilder(
+            source_account=source_account,
+            network_passphrase=network_passphrase,
+            base_fee=int(original_tx.transaction.fee)
+        )
+        .append_operation(operation)
+        .set_timeout(30)
+        .build()
+    )
+
+    # Simulate and sign
+    sim_response = server.simulate_transaction(rebuilt_tx)
+    final_tx = server.prepare_transaction(rebuilt_tx, sim_response)
+    final_tx.sign(keypair)
+
+    return final_tx.to_xdr()
+```
+
+## Submission (src/lib/submit.py)
+
+```python
+async def submit_transaction(signed_xdr: str) -> Dict[str, Any]:
+    """
+    Submit and poll for result
+
+    - 120 attempts
+    - 1 second between checks
+    - 2 minute timeout
+    """
+    server = SorobanServer(rpc_url)
+    envelope = TransactionEnvelope.from_xdr(signed_xdr, network_passphrase)
+
+    response = server.send_transaction(envelope)
+    tx_hash = response.hash
+
+    for attempt in range(120):
+        tx_response = server.get_transaction(tx_hash)
+
+        if tx_response.status == "SUCCESS":
+            return {
+                "hash": tx_hash,
+                "status": "SUCCESS",
+                "result": "Transaction succeeded"
+            }
+
+        elif tx_response.status == "FAILED":
+            return {
+                "hash": tx_hash,
+                "status": "FAILED",
+                "error": tx_response.result_xdr
+            }
+
+        await asyncio.sleep(1.0)
+
+    return {"hash": tx_hash, "status": "TIMEOUT"}
+```
+
+## Dependencies (pyproject.toml)
+
+```toml
+[project]
+name = "mcp-server"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp[cli]>=1.22.0",
+    "stellar-sdk[aiohttp]>=13.1.0",
+    "stellar-contract-bindings>=0.5.0b0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+]
+```
+
+## Environment Configuration
+
+```bash
+# .env
+CONTRACT_ID=CAHLJEQUCNTV7JPAPCMLCBIHOX7FFB57DUARJ6XGTW27FPCVKKY7JM2A
+RPC_URL=https://soroban-testnet.stellar.org
+NETWORK_PASSPHRASE="Test SDF Network ; September 2015"
+
+# Optional: for signing
+SIGNER_SECRET=S...
+```
+
+## Running the Server
+
+```bash
+# Install dependencies
+uv sync
+
+# Run server (stdio transport)
+uv run server.py
+```
+
+## Python vs TypeScript Differences
+
+| Feature | Python | TypeScript |
+|---------|--------|------------|
+| PasskeyKit | Not supported | Full support |
+| Wallet deployment | No | Yes (`deploy-wallet.ts`) |
+| Auth entry signing | Via simulation only | Advanced auth support |
+| Polling timeout | 2 minutes | 30 seconds |
+| Type system | Runtime hints | Compile-time checks |
+
+> [!NOTE]
+> Python servers don't include PasskeyKit support because the `passkey-kit` library is TypeScript-only. Use TypeScript if you need smart wallet integration.

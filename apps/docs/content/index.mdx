@@ -1,0 +1,117 @@
+---
+title: Introduction
+---
+
+import { Cards, Steps } from 'nextra/components'
+
+# Stellar MCP & Policy Plugins
+
+Welcome to the documentation for **Stellar MCP & Policy Plugins** - two powerful Stellar CLI plugins that streamline Soroban smart contract development.
+
+## What Are These Plugins?
+
+### stellar-mcp-generator
+
+Generate production-ready **MCP (Model Context Protocol) servers** from deployed Soroban contracts. Create AI-powered interfaces to your smart contracts in TypeScript or Python.
+
+```bash
+stellar mcp generate --contract-id CABC... --lang typescript --output my-mcp
+```
+
+**Features:**
+- TypeScript and Python server generation
+- PasskeyKit integration for smart wallet authentication
+- Transaction signing with sequence staleness handling
+- Claude Desktop integration for AI-assisted interaction
+
+### stellar-policy-cli
+
+Create **policy-enforced smart contracts** through an interactive wizard. Add security controls like whitelists, amount caps, and rate limiting without writing Rust from scratch.
+
+```bash
+stellar policy generate
+```
+
+**Features:**
+- Interactive wizard with colored UI and progress bars
+- Function, contract, and recipient whitelisting
+- Amount caps and rate limiting
+- Generated Makefile workflows and TypeScript bindings
+
+## Quick Start
+
+<Steps>
+
+### Install the Stellar CLI
+
+If you don't have the Stellar CLI installed:
+
+```bash
+# macOS/Linux
+curl -sSL https://stellar.org/install | bash
+
+# Or via cargo
+cargo install stellar-cli
+```
+
+### Install the Plugins
+
+```bash
+# Clone and install MCP Generator
+git clone https://github.com/stellar/stellar-mcp-generator
+cd stellar-mcp-generator
+cargo install --path .
+
+# Clone and install Policy CLI
+git clone https://github.com/stellar/stellar-policy-cli
+cd stellar-policy-cli
+cargo install --path .
+```
+
+### Verify Installation
+
+```bash
+stellar plugins --list
+# Should show:
+# Installed Plugins:
+#     mcp
+#     policy
+```
+
+### Generate Your First MCP Server
+
+```bash
+stellar mcp generate \
+  --contract-id CAHLJEQUCNTV7JPAPCMLCBIHOX7FFB57DUARJ6XGTW27FPCVKKY7JM2A \
+  --network testnet \
+  --lang typescript \
+  --output my-token-mcp
+```
+
+### Or Create a Policy Contract
+
+```bash
+stellar policy generate
+# Follow the interactive wizard
+```
+
+</Steps>
+
+## Why Use These Plugins?
+
+| Benefit | Description |
+|---------|-------------|
+| **Save Hours** | Skip boilerplate configuration and get working projects in minutes |
+| **Production Ready** | Battle-tested patterns for transaction signing, error handling, and security |
+| **AI-Powered** | Integrate with Claude Desktop for AI-assisted smart contract development |
+| **Type-Safe** | Generated TypeScript bindings ensure type safety across your application |
+| **Best Practices** | Follow Stellar ecosystem conventions out of the box |
+
+## What's Next?
+
+<Cards>
+  <Cards.Card title="Getting Started" href="/getting-started" />
+  <Cards.Card title="MCP Generator" href="/mcp-generator" />
+  <Cards.Card title="Policy CLI" href="/policy-cli" />
+  <Cards.Card title="Examples" href="/examples" />
+</Cards>

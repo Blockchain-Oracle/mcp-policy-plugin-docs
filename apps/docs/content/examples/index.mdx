@@ -1,0 +1,61 @@
+---
+title: Examples
+---
+
+import { Cards } from 'nextra/components'
+
+# Examples
+
+Explore real-world examples of generated projects from the Stellar CLI Plugins.
+
+## Generated Projects
+
+These examples show the actual output from running the generators against deployed Soroban contracts.
+
+<Cards>
+  <Cards.Card title="TypeScript MCP Server" href="/examples/typescript-mcp" />
+  <Cards.Card title="Python MCP Server" href="/examples/python-mcp" />
+  <Cards.Card title="Policy Contract" href="/examples/policy-contract" />
+</Cards>
+
+## Source Contracts
+
+The MCP server examples are generated from a **Token Factory** contract deployed on testnet:
+
+| Property | Value |
+|----------|-------|
+| Contract ID | `CAHLJEQUCNTV7JPAPCMLCBIHOX7FFB57DUARJ6XGTW27FPCVKKY7JM2A` |
+| Network | Testnet |
+| Functions | 16 (deploy tokens, manage admins, set WASM hashes) |
+
+## What To Expect
+
+Each example includes:
+
+- **Complete project structure** - Every file that gets generated
+- **Key code snippets** - Important implementation details
+- **Configuration** - Environment variables and settings
+- **Running instructions** - How to build and run
+
+## Try It Yourself
+
+Generate your own projects:
+
+```bash
+# TypeScript MCP Server
+stellar mcp generate \
+    --contract-id CAHLJEQUCNTV7JPAPCMLCBIHOX7FFB57DUARJ6XGTW27FPCVKKY7JM2A \
+    --network testnet \
+    --lang typescript \
+    --output my-token-mcp
+
+# Python MCP Server
+stellar mcp generate \
+    --contract-id CAHLJEQUCNTV7JPAPCMLCBIHOX7FFB57DUARJ6XGTW27FPCVKKY7JM2A \
+    --network testnet \
+    --lang python \
+    --output my-token-mcp-python
+
+# Policy Contract (interactive)
+stellar policy generate
+```

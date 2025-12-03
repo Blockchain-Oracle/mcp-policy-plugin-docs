@@ -1,0 +1,12 @@
+{
+  "name": "@stellar-mcp-demo/config",
+  "version": "1.0.0",
+  "private": true,
+  "exports": {
+    "./eslint/next": "./eslint/next.js",
+    "./typescript/base": "./typescript/base.json",
+    "./typescript/nextjs": "./typescript/nextjs.json",
+    "./typescript/react": "./typescript/react.json",
+    "./tailwind": "./tailwind/base.ts"
+  }
+}

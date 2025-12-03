@@ -1,0 +1,338 @@
+---
+title: Policy Contract
+---
+
+# Policy Contract Example
+
+This example shows a policy contract generated with recipient whitelisting, amount caps, and rate limiting.
+
+## Wizard Configuration
+
+```
+Policy name: demo-policy
+Description: Treasury policy with transfer limits
+
+Function whitelist: No
+Contract whitelist: No
+Recipient whitelist: Yes
+  - GC5NBJNAL2D5UL5HHGK3M5IKKF6BZR2CCXXO4PRPKPUMDKWZVKRZAKNM
+
+Amount cap: Yes
+  - Default: 10,000,000 stroops (1 XLM)
+
+Rate limiting: Yes
+  - Default: 200 ledgers (~16 minutes)
+
+Admin management: Yes
+```
+
+## Generated Structure
+
+```
+demo-policy/
+├── contracts/
+│   ├── Cargo.toml
+│   ├── rust-toolchain.toml
+│   └── demo-policy/
+│       ├── Cargo.toml
+│       └── src/
+│           ├── lib.rs       # Policy contract
+│           ├── types.rs     # StorageKey enum
+│           └── test.rs      # 13 unit tests
+├── demo-policy-sdk/         # (After make bindings)
+├── examples/
+│   └── typescript-integration.ts
+├── scripts/
+│   └── fix-bindings.sh
+├── Makefile
+├── package.json
+└── README.md
+```
+
+## Policy Contract
+
+```rust
+// contracts/demo-policy/src/lib.rs
+#![no_std]
+use soroban_sdk::{
+    contract, contractimpl, contracttype, contracterror,
+    panic_with_error, Address, BytesN, Bytes, Env, Vec,
+};
+use smart_wallet_interface::{Context, ContractContext, SignerKey};
+
+mod types;
+use types::StorageKey;
+
+// Re-export SignerKey for CLI compatibility
+#[contracttype(export = true)]
+#[derive(Clone, Debug, PartialEq)]
+pub enum SignerKey {
+    Policy(Address),
+    Ed25519(BytesN<32>),
+    Secp256r1(Bytes),
+}
+
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum Error {
+    AlreadyInitialized = 1,
+    NotInitialized = 2,
+    NotAllowed = 4,
+    TooSoon = 5,
+    TooMuch = 6,
+}
+
+#[contract]
+pub struct PolicyContract;
+
+#[contractimpl]
+impl PolicyContract {
+    /// Initialize the policy with an admin address
+    pub fn init(env: Env, admin: Address) {
+        if env.storage().persistent().has(&StorageKey::Admin) {
+            panic_with_error!(&env, Error::AlreadyInitialized);
+        }
+        env.storage().persistent().set(&StorageKey::Admin, &admin);
+    }
+
+    /// Add a wallet with custom limits (admin only)
+    pub fn add_wallet(
+        env: Env,
+        user: BytesN<32>,
+        max_amount: i128,
+        min_ledgers: u32,
+    ) {
+        let admin: Address = env.storage().persistent()
+            .get(&StorageKey::Admin)
+            .unwrap_or_else(|| panic_with_error!(&env, Error::NotInitialized));
+
+        admin.require_auth();
+
+        env.storage().persistent()
+            .set(&StorageKey::Limits(user.clone()), &max_amount);
+        env.storage().persistent()
+            .set(&StorageKey::MinLedgers(user), &min_ledgers);
+    }
+
+    /// Validate transaction against policy rules
+    pub fn policy__(
+        env: Env,
+        _source: Address,
+        _signer: SignerKey,
+        contexts: Vec<Context>
+    ) {
+        for context in contexts.iter() {
+            match context {
+                Context::Contract(ContractContext { contract, fn_name, args, .. }) => {
+                    // 1. RECIPIENT WHITELIST
+                    if let Some(recipient_val) = args.get(1) {
+                        if let Ok(recipient) = Address::try_from_val(&env, &recipient_val) {
+                            let allowed_recipient = Address::from_str(&env,
+                                "GC5NBJNAL2D5UL5HHGK3M5IKKF6BZR2CCXXO4PRPKPUMDKWZVKRZAKNM");
+
+                            if recipient != allowed_recipient {
+                                panic_with_error!(&env, Error::NotAllowed);
+                            }
+                        }
+                    }
+
+                    // Get signer bytes for per-wallet limits
+                    let signer_bytes = match &_signer {
+                        SignerKey::Ed25519(key) => key.clone(),
+                        _ => panic_with_error!(&env, Error::NotAllowed),
+                    };
+
+                    // 2. AMOUNT CAP
+                    if let Some(amount_val) = args.get(2) {
+                        if let Ok(amount) = i128::try_from_val(&env, &amount_val) {
+                            let max_amount: i128 = env.storage().persistent()
+                                .get(&StorageKey::Limits(signer_bytes.clone()))
+                                .unwrap_or(10000000); // Default: 1 XLM
+
+                            if amount > max_amount {
+                                panic_with_error!(&env, Error::TooMuch);
+                            }
+                        }
+                    }
+
+                    // 3. RATE LIMITING
+                    let min_ledgers: u32 = env.storage().persistent()
+                        .get(&StorageKey::MinLedgers(signer_bytes.clone()))
+                        .unwrap_or(200); // Default: 200 ledgers
+
+                    let current_ledger = env.ledger().sequence();
+
+                    if let Some(previous) = env.storage().persistent()
+                        .get::<StorageKey, u32>(&StorageKey::Previous(signer_bytes.clone()))
+                    {
+                        if current_ledger < previous + min_ledgers {
+                            panic_with_error!(&env, Error::TooSoon);
+                        }
+                    }
+
+                    // Update last transaction ledger
+                    env.storage().persistent()
+                        .set(&StorageKey::Previous(signer_bytes), &current_ledger);
+                }
+                _ => panic_with_error!(&env, Error::NotAllowed),
+            }
+        }
+    }
+}
+```
+
+## Storage Types
+
+```rust
+// contracts/demo-policy/src/types.rs
+use soroban_sdk::{contracttype, BytesN};
+
+#[contracttype]
+pub enum StorageKey {
+    Admin,
+    Previous(BytesN<32>),   // Rate limiting: last txn ledger
+    Limits(BytesN<32>),     // Amount cap per signer
+    MinLedgers(BytesN<32>), // Rate limit per signer
+}
+```
+
+## Unit Tests
+
+```rust
+// contracts/demo-policy/src/test.rs
+#![cfg(test)]
+use super::*;
+use soroban_sdk::{testutils::*, Env};
+
+#[test]
+fn test_init_success() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register_contract(None, PolicyContract);
+    let client = PolicyContractClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+
+    client.init(&admin);
+    // Success: no panic
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #1)")]
+fn test_already_initialized() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register_contract(None, PolicyContract);
+    let client = PolicyContractClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+
+    client.init(&admin);
+    client.init(&admin); // Panics: AlreadyInitialized
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #6)")]
+fn test_amount_cap_blocks_over_limit() {
+    // Test that amounts over cap fail with TooMuch
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #5)")]
+fn test_rate_limiting_blocks_too_soon() {
+    // Test that rapid transactions fail with TooSoon
+}
+
+#[test]
+fn test_rate_limiting_allows_after_waiting() {
+    // Test that transactions after waiting succeed
+    let env = Env::default();
+    // ... advance ledger by min_ledgers ...
+}
+```
+
+## Build and Deploy
+
+```bash
+# Build
+make build
+
+# Test
+make test
+
+# Deploy to testnet
+make deploy-testnet
+# Returns: POLICY_CONTRACT_ID
+
+# Generate TypeScript bindings
+make bindings
+```
+
+## TypeScript Integration
+
+```typescript
+// examples/typescript-integration.ts
+import { Client } from '../demo-policy-sdk/dist/index.js';
+import { Keypair, Networks } from '@stellar/stellar-sdk';
+
+const POLICY_CONTRACT_ID = process.env.POLICY_CONTRACT_ID!;
+const ADMIN_SECRET = process.env.ADMIN_SECRET!;
+
+async function main() {
+    const client = new Client({
+        contractId: POLICY_CONTRACT_ID,
+        networkPassphrase: Networks.TESTNET,
+        rpcUrl: 'https://soroban-testnet.stellar.org',
+    });
+
+    const adminKeypair = Keypair.fromSecret(ADMIN_SECRET);
+
+    // Initialize policy
+    console.log('Initializing policy...');
+    const initTx = await client.init({
+        admin: adminKeypair.publicKey()
+    });
+    initTx.sign(adminKeypair);
+    await initTx.submit();
+
+    // Add a wallet with custom limits
+    // 100 XLM cap, 50 ledger cooldown
+    const userKey = '1ed9636ecef7ad5b19534639ff3711c45e8a342433410174180cd5eb43b03945';
+
+    console.log('Adding wallet...');
+    const addTx = await client.add_wallet({
+        user: Buffer.from(userKey, 'hex'),
+        max_amount: 1000000000n,  // 100 XLM
+        min_ledgers: 50,          // ~4 minutes
+    });
+    addTx.sign(adminKeypair);
+    await addTx.submit();
+
+    console.log('Policy configured!');
+}
+
+main().catch(console.error);
+```
+
+## Smart Wallet Integration
+
+Attach the policy to a smart wallet signer:
+
+```typescript
+import { PasskeyKit } from 'passkey-kit';
+
+// Configure signer with policy
+const signerLimits = new Map();
+signerLimits.set(
+    TARGET_TOKEN_CONTRACT,
+    [{ tag: 'Policy', values: [POLICY_CONTRACT_ID] }]
+);
+
+// Update wallet
+await passkey.updateEd25519Signer(publicKey, signerLimits);
+
+// Now all transactions from this signer go through the policy:
+// - Only approved recipients
+// - Amount <= configured cap
+// - Rate limited
+```

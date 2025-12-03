@@ -1,0 +1,96 @@
+---
+title: Policy CLI
+---
+
+import { Cards } from 'nextra/components'
+
+# Policy CLI
+
+The **stellar-policy-cli** is a Stellar CLI plugin that generates policy smart contracts for Stellar smart wallets through an interactive wizard. Create security controls like whitelists, amount caps, and rate limiting without writing Rust from scratch.
+
+## What It Does
+
+Given your policy requirements, the generator:
+
+1. **Guides you through an interactive wizard** with colored UI
+2. **Configures policy rules** (whitelists, caps, rate limits)
+3. **Generates a complete Rust contract** ready for deployment
+4. **Creates comprehensive tests** for all policy features
+5. **Produces TypeScript bindings** for integration
+
+## What Are Policy Contracts?
+
+Policy contracts enforce authorization rules for Stellar smart wallets built with PasskeyKit. They control:
+
+- **Which functions** can be called
+- **Which contracts** can be interacted with
+- **Which recipients** can receive funds
+- **How much** can be transferred (amount caps)
+- **How often** transactions can occur (rate limiting)
+
+## Quick Example
+
+```bash
+# Run the wizard
+stellar policy generate
+
+# Answer interactive prompts:
+# - Policy name: my-transfer-policy
+# - Enable recipient whitelist? Yes
+# - Enter recipients: GABC..., GDEF...
+# - Enable amount cap? Yes
+# - Max amount: 10000000 (1 XLM in stroops)
+# - Enable rate limiting? Yes
+# - Min ledgers between txns: 100
+
+# Result: Complete Rust project generated!
+```
+
+## Generated Project Structure
+
+```
+my-transfer-policy/
+├── contracts/
+│   └── my-transfer-policy/
+│       ├── Cargo.toml
+│       └── src/
+│           ├── lib.rs       # Policy contract
+│           ├── types.rs     # Storage types
+│           └── test.rs      # Unit tests
+├── scripts/
+│   └── fix-bindings.sh      # TypeScript bindings fixer
+├── examples/
+│   └── typescript-integration.ts
+├── Makefile                  # Build/test/deploy targets
+├── package.json
+└── README.md
+```
+
+## Policy Types
+
+| Type | Description | Stateful? |
+|------|-------------|-----------|
+| **Function Whitelist** | Only allow specific functions | No |
+| **Contract Whitelist** | Only allow specific contracts | No |
+| **Recipient Whitelist** | Only allow specific recipients | No |
+| **Amount Cap** | Limit transaction amounts | Yes |
+| **Rate Limiting** | Enforce time between transactions | Yes |
+
+## Admin Mode
+
+Stateful policies (amount caps, rate limiting) can be configured with **admin mode**:
+
+- Initialize the contract with an admin address
+- Dynamically add/configure wallet permissions
+- Update limits without redeploying
+
+## Documentation Sections
+
+<Cards>
+  <Cards.Card title="Interactive Wizard" href="/policy-cli/wizard" />
+  <Cards.Card title="Policy Types" href="/policy-cli/policy-types" />
+  <Cards.Card title="Generated Project" href="/policy-cli/generated-project" />
+  <Cards.Card title="Makefile Workflows" href="/policy-cli/makefile-workflows" />
+  <Cards.Card title="TypeScript Bindings" href="/policy-cli/typescript-bindings" />
+  <Cards.Card title="Admin Mode" href="/policy-cli/admin-mode" />
+</Cards>

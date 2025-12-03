@@ -1,0 +1,262 @@
+---
+title: Interactive Wizard
+---
+
+import { Steps } from 'nextra/components'
+
+# Interactive Wizard
+
+The MCP Generator includes an interactive wizard for guided configuration. The wizard activates when you run `stellar mcp generate` with no flags.
+
+## Starting the Wizard
+
+```bash
+stellar mcp generate
+```
+
+## Wizard Flow
+
+The wizard guides you through 6 configuration steps:
+
+<Steps>
+
+### Contract ID
+
+Enter the contract ID of your deployed Soroban contract.
+
+```
+🚀 Enter the contract ID (starts with 'C', 56 characters):
+> CAHLJEQUCNTV7JPAPCMLCBIHOX7FFB57DUARJ6XGTW27FPCVKKY7JM2A
+```
+
+**Validation:**
+- Must be exactly 56 characters
+- Must start with 'C'
+- Must be valid base32 encoding
+
+### Network Selection
+
+Select the network where your contract is deployed.
+
+```
+🌐 Select the network:
+> testnet
+  mainnet
+  futurenet
+  local
+  custom
+```
+
+If you select **custom**, you'll be prompted for:
+- Custom RPC URL
+- Network passphrase
+
+### Language Selection
+
+Choose your target language.
+
+```
+💻 Select the target language:
+> typescript
+  python
+```
+
+### Output Directory
+
+Specify where to generate the project.
+
+```
+📁 Enter output directory:
+> ./my-token-mcp
+```
+
+**Default:** `./mcp-server`
+
+### Contract Name (Optional)
+
+Optionally provide a name for your contract.
+
+```
+📝 Enter contract name (optional, press Enter to skip):
+> my-token
+```
+
+If skipped, the generator attempts to:
+1. Read the name from contract metadata
+2. Use the first 8 characters of the contract ID
+
+### MCP Server Name
+
+Set the name for MCP server registration.
+
+```
+🏷️ Enter MCP server name:
+> soroban-contract
+```
+
+**Default:** `soroban-contract`
+
+</Steps>
+
+## Configuration Summary
+
+After answering all prompts, the wizard shows a summary:
+
+```
+╔═══════════════════════════════════════════════════════════╗
+║                    Configuration Summary                    ║
+╠═══════════════════════════════════════════════════════════╣
+║  Contract ID:    CAHLJEQUCNTV7JPAPCMLCBIHOX7FFB57DUARJ...  ║
+║  Network:        testnet                                    ║
+║  Language:       typescript                                 ║
+║  Output:         ./my-token-mcp                            ║
+║  Contract Name:  my-token                                   ║
+║  Server Name:    soroban-contract                          ║
+╚═══════════════════════════════════════════════════════════╝
+
+Continue with generation? [Y/n]
+```
+
+## Visual Features
+
+The wizard uses color-coded output:
+
+| Color | Purpose |
+|-------|---------|
+| **Cyan** | Headers and section titles |
+| **Green** | Success messages and confirmations |
+| **Yellow** | Warnings and important notes |
+| **Red** | Errors and validation failures |
+
+### Emoji Support
+
+The wizard displays emojis with ASCII fallbacks:
+
+| Emoji | Fallback | Usage |
+|-------|----------|-------|
+| 🚀 | `>` | Start/action prompts |
+| ✨ | `*` | Success indicators |
+| 📁 | `[]` | Directory/file references |
+| ⚙️ | `[*]` | Configuration options |
+| ✅ | `[OK]` | Completed steps |
+| ℹ️ | `i` | Information |
+
+## Keyboard Navigation
+
+| Key | Action |
+|-----|--------|
+| `↑` / `↓` | Navigate options |
+| `Enter` | Select / Confirm |
+| `Ctrl+C` | Cancel wizard |
+| `Backspace` | Clear input |
+
+## Examples
+
+### Full Wizard Session
+
+```
+$ stellar mcp generate
+
+═══════════════════════════════════════════════════════════
+              Stellar MCP Generator Wizard
+═══════════════════════════════════════════════════════════
+
+This wizard will guide you through generating an MCP server
+from a deployed Soroban contract.
+
+🚀 Ready to begin? [Y/n] Y
+
+Step 1/6: Contract ID
+━━━━━━━━━━━━━━━━━━━━━
+
+🔗 Enter the contract ID (starts with 'C', 56 characters):
+> CAHLJEQUCNTV7JPAPCMLCBIHOX7FFB57DUARJ6XGTW27FPCVKKY7JM2A
+
+✅ Contract ID validated
+
+Step 2/6: Network
+━━━━━━━━━━━━━━━━━
+
+🌐 Select the network:
+  ▸ testnet
+    mainnet
+    futurenet
+    local
+    custom
+
+✅ Network: testnet
+
+Step 3/6: Language
+━━━━━━━━━━━━━━━━━━
+
+💻 Select the target language:
+  ▸ typescript
+    python
+
+✅ Language: typescript
+
+Step 4/6: Output Directory
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📁 Enter output directory [./mcp-server]:
+> ./my-token-mcp
+
+✅ Output: ./my-token-mcp
+
+Step 5/6: Contract Name (Optional)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📝 Enter contract name (press Enter to skip):
+> my-token
+
+✅ Name: my-token
+
+Step 6/6: Server Name
+━━━━━━━━━━━━━━━━━━━━━
+
+🏷️ Enter MCP server name [soroban-contract]:
+>
+
+✅ Server name: soroban-contract
+
+═══════════════════════════════════════════════════════════
+
+🚀 Generating MCP server...
+
+✅ Fetched contract specification
+✅ Generated TypeScript code
+✅ Created project files
+✅ Generated Stellar bindings
+
+✨ MCP server generated successfully!
+
+📁 Output: ./my-token-mcp
+
+Next steps:
+  cd my-token-mcp
+  pnpm install
+  pnpm build
+  pnpm start
+```
+
+## When to Use Wizard vs Flags
+
+| Scenario | Recommended |
+|----------|-------------|
+| First time using the generator | Wizard |
+| Exploring options | Wizard |
+| CI/CD automation | Flags |
+| Scripted generation | Flags |
+| Quick iteration | Flags |
+
+## Disabling Wizard
+
+To always use flags mode, provide at least the required `--contract-id`:
+
+```bash
+# This will NOT trigger the wizard
+stellar mcp generate --contract-id CABC...
+
+# This WILL trigger the wizard
+stellar mcp generate
+```

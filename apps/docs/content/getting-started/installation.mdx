@@ -1,0 +1,140 @@
+---
+title: Installation
+---
+
+import { Steps } from 'nextra/components'
+
+# Installation
+
+Install the Stellar MCP Plugins from source using Cargo.
+
+## Installing stellar-mcp-generator
+
+The MCP generator creates MCP servers from deployed Soroban contracts.
+
+<Steps>
+
+### Clone the Repository
+
+```bash
+git clone https://github.com/stellar/stellar-mcp-generator
+cd stellar-mcp-generator
+```
+
+### Install via Cargo
+
+```bash
+cargo install --path .
+```
+
+This compiles the plugin and installs it as a Stellar CLI plugin.
+
+### Verify Installation
+
+```bash
+stellar mcp --help
+```
+
+You should see the MCP generator help output.
+
+</Steps>
+
+## Installing stellar-policy-cli
+
+The Policy CLI generates policy-enforced smart contracts via an interactive wizard.
+
+<Steps>
+
+### Clone the Repository
+
+```bash
+git clone https://github.com/stellar/stellar-policy-cli
+cd stellar-policy-cli
+```
+
+### Install via Cargo
+
+```bash
+cargo install --path .
+```
+
+### Verify Installation
+
+```bash
+stellar policy --help
+```
+
+You should see the Policy CLI help output.
+
+</Steps>
+
+## Both Plugins Installed
+
+After installing both plugins, verify they appear in the plugin list:
+
+```bash
+stellar plugins --list
+```
+
+Expected output:
+
+```
+Installed Plugins:
+    mcp
+    policy
+```
+
+## Installation Locations
+
+The plugins are installed to your Cargo bin directory:
+
+```bash
+# Default location
+~/.cargo/bin/stellar-mcp
+~/.cargo/bin/stellar-policy
+
+# Check your Cargo bin path
+echo $HOME/.cargo/bin
+```
+
+## Updating Plugins
+
+To update a plugin to the latest version:
+
+```bash
+# Pull latest changes
+cd stellar-mcp-generator
+git pull origin main
+
+# Reinstall
+cargo install --path . --force
+```
+
+The `--force` flag overwrites the existing installation.
+
+## Uninstalling Plugins
+
+To remove a plugin:
+
+```bash
+# Remove MCP generator
+cargo uninstall stellar-mcp
+
+# Remove Policy CLI
+cargo uninstall stellar-policy
+```
+
+## Build from a Specific Branch
+
+If you need a specific version:
+
+```bash
+git clone https://github.com/stellar/stellar-mcp-generator
+cd stellar-mcp-generator
+git checkout feature/some-branch
+cargo install --path .
+```
+
+## Next Steps
+
+Proceed to [Verification](/getting-started/verification) to ensure everything works correctly.

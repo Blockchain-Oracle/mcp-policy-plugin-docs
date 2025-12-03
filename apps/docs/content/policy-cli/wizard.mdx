@@ -1,0 +1,353 @@
+---
+title: Interactive Wizard
+---
+
+import { Steps } from 'nextra/components'
+
+# Interactive Wizard
+
+The Policy CLI uses an interactive wizard to guide you through policy configuration. The wizard features colored output, progress indicators, and back navigation.
+
+## Starting the Wizard
+
+```bash
+stellar policy generate
+```
+
+Or with a custom output directory:
+
+```bash
+stellar policy generate --output my-policy
+```
+
+## Wizard Flow
+
+The wizard guides you through 10 steps:
+
+<Steps>
+
+### Welcome
+
+The wizard introduces itself and explains what will be configured.
+
+```
+═══════════════════════════════════════════════════════════════
+           Stellar Policy Contract Generator Wizard
+═══════════════════════════════════════════════════════════════
+
+This wizard will guide you through creating a policy smart
+contract for Stellar smart wallets.
+
+You'll configure:
+• Policy name and description
+• Function, contract, and recipient whitelists
+• Amount caps and rate limiting
+• Admin management options
+
+🚀 Ready to begin? [Y/n]
+```
+
+### Policy Name
+
+Enter a name for your policy contract.
+
+```
+Step 1/10: Policy Name               [██░░░░░░░░]
+
+📝 Enter policy name (3-50 characters, lowercase, hyphens allowed):
+> my-transfer-policy
+
+✅ Policy name: my-transfer-policy
+```
+
+**Validation:**
+- 3-50 characters
+- Lowercase letters and hyphens only
+- No leading/trailing hyphens
+
+### Description (Optional)
+
+Add an optional description for your policy.
+
+```
+Step 2/10: Description               [███░░░░░░░]
+
+📋 Add a description for this policy?
+> Yes
+
+Enter description:
+> Limits transfers to approved recipients with daily caps
+```
+
+### Function Whitelist
+
+Restrict which contract functions can be called.
+
+```
+Step 3/10: Function Whitelist        [████░░░░░░]
+
+⚙️ Enable function whitelisting?
+  ▸ Yes
+    No
+
+Enter function names (comma-separated):
+> transfer, approve, mint
+
+✅ Allowed functions: transfer, approve, mint
+```
+
+**Validation:**
+- Valid Rust identifiers
+- Letters, numbers, underscores
+- Must start with letter or underscore
+
+### Contract Whitelist
+
+Restrict which contracts can be interacted with.
+
+```
+Step 4/10: Contract Whitelist        [█████░░░░░]
+
+📋 Enable contract whitelisting?
+  ▸ Yes
+    No
+
+Enter contract addresses (comma-separated, 56 chars each):
+> CABC...56chars..., CDEF...56chars...
+
+✅ Allowed contracts: 2 addresses
+```
+
+**Validation:**
+- 56 characters exactly
+- Starts with 'C'
+- Valid base32 encoding
+
+### Recipient Whitelist
+
+Restrict which accounts can receive funds.
+
+```
+Step 5/10: Recipient Whitelist       [██████░░░░]
+
+👤 Enable recipient whitelisting?
+  ▸ Yes
+    No
+
+Enter recipient addresses (comma-separated, 56 chars each):
+> GABC...56chars..., GDEF...56chars...
+
+✅ Allowed recipients: 2 addresses
+```
+
+**Validation:**
+- 56 characters exactly
+- Starts with 'G'
+- Valid base32 encoding
+
+### Amount Cap
+
+Limit the maximum transaction amount.
+
+```
+Step 6/10: Amount Cap                [███████░░░]
+
+💰 Enable amount caps?
+  ▸ Yes
+    No
+
+Enter maximum amount (in stroops, 1 XLM = 10,000,000):
+> 10000000
+
+Optional: Enter token contract address (leave empty for native):
+>
+
+✅ Amount cap: 10,000,000 stroops (native token)
+```
+
+> [!NOTE]
+> This is a **stateful** feature. The wizard will recommend admin mode.
+
+### Rate Limiting
+
+Enforce minimum time between transactions.
+
+```
+Step 7/10: Rate Limiting             [████████░░]
+
+⏱️ Enable rate limiting?
+  ▸ Yes
+    No
+
+Enter minimum ledgers between transactions:
+> 100
+
+✅ Rate limit: 100 ledgers (~8 minutes)
+```
+
+> [!NOTE]
+> Each ledger is approximately 5 seconds. 100 ledgers ≈ 8 minutes.
+
+### Policy Analysis
+
+The wizard analyzes your configuration.
+
+```
+Step 8/10: Policy Analysis           [█████████░]
+
+📊 Policy Configuration Summary
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Enabled Features:
+  ✅ Recipient whitelist (2 addresses)
+  ✅ Amount cap (10,000,000 stroops)
+  ✅ Rate limiting (100 ledgers)
+  ❌ Function whitelist
+  ❌ Contract whitelist
+
+⚠️ Stateful Features Detected
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Your policy includes amount caps and/or rate limiting.
+These features require persistent storage to track:
+  • Per-wallet amount limits
+  • Previous transaction ledgers
+
+Recommendation: Enable admin management for dynamic configuration.
+```
+
+### Admin Decision
+
+Choose whether to enable admin management.
+
+```
+Step 9/10: Admin Management          [██████████]
+
+👤 Enable admin management?
+
+This allows:
+  • Initializing the contract with an admin address
+  • Adding wallets with custom limits
+  • Updating configuration after deployment
+
+  ▸ Yes (recommended for stateful policies)
+    No
+
+✅ Admin management: Enabled
+```
+
+### Generation
+
+The wizard generates your project.
+
+```
+Step 10/10: Generate                 [██████████]
+
+🚀 Generating policy contract...
+
+  ✅ Created contracts/my-transfer-policy/
+  ✅ Generated lib.rs with policy logic
+  ✅ Generated types.rs with storage keys
+  ✅ Generated test.rs with 13 unit tests
+  ✅ Created Makefile with build targets
+  ✅ Created TypeScript integration example
+
+✨ Policy contract generated successfully!
+
+📁 Output: ./my-transfer-policy
+
+Next steps:
+  cd my-transfer-policy
+  make build
+  make test
+  make deploy-testnet
+```
+
+</Steps>
+
+## Visual Features
+
+### Color Coding
+
+| Color | Purpose |
+|-------|---------|
+| **Cyan** | Headers, section titles |
+| **Green** | Success, confirmations |
+| **Yellow** | Warnings, stateful features |
+| **Red** | Errors, validation failures |
+
+### Progress Bar
+
+```
+Step 3/10: Function Whitelist        [████░░░░░░]
+```
+
+The progress bar shows your position in the wizard.
+
+### Emoji Support
+
+| Emoji | Fallback | Usage |
+|-------|----------|-------|
+| 🚀 | `>` | Start/action |
+| ✅ | `[OK]` | Success |
+| ❌ | `[X]` | Disabled/error |
+| ⚠️ | `[!]` | Warning |
+| 📝 | `[]` | Input prompt |
+
+## Keyboard Navigation
+
+| Key | Action |
+|-----|--------|
+| `↑` / `↓` | Navigate options |
+| `Enter` | Select / Confirm |
+| `Ctrl+C` | Cancel wizard |
+| `Backspace` | Go back one step |
+
+## Back Navigation
+
+At any step (except Welcome), you can go back:
+
+```
+Step 5/10: Recipient Whitelist
+
+  Continue
+  ▸ Go Back
+
+[Goes back to Step 4: Contract Whitelist]
+```
+
+This lets you fix mistakes without restarting.
+
+## Example: Minimal Policy
+
+```bash
+$ stellar policy generate
+
+Policy name: simple-policy
+Description: (skipped)
+Function whitelist: No
+Contract whitelist: No
+Recipient whitelist: No
+Amount cap: No
+Rate limiting: No
+Admin management: No
+
+# Generates a pass-through policy (allows everything)
+```
+
+## Example: Full Security Policy
+
+```bash
+$ stellar policy generate
+
+Policy name: secure-treasury-policy
+Description: Treasury policy with all protections
+Function whitelist: Yes → transfer, withdraw
+Contract whitelist: Yes → CABC..., CDEF...
+Recipient whitelist: Yes → GABC..., GDEF...
+Amount cap: Yes → 100000000 (10 XLM)
+Rate limiting: Yes → 200 ledgers
+Admin management: Yes
+
+# Generates a fully protected policy
+```

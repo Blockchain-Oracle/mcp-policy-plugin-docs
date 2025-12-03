@@ -1,0 +1,250 @@
+---
+title: FAQ
+---
+
+# Frequently Asked Questions
+
+Common questions about the Stellar MCP Plugins.
+
+## General
+
+### What are Stellar MCP Plugins?
+
+Stellar MCP Plugins are two Stellar CLI plugins:
+1. **stellar-mcp-generator** - Generates MCP servers from Soroban contracts
+2. **stellar-policy-cli** - Creates policy smart contracts via wizard
+
+### What is MCP?
+
+MCP (Model Context Protocol) is a standard for connecting AI assistants to external tools. When you generate an MCP server, Claude Desktop can use your Soroban contract functions as tools.
+
+### Do I need both plugins?
+
+No. Use whichever plugin fits your needs:
+- Use **stellar-mcp-generator** if you want AI to interact with your contracts
+- Use **stellar-policy-cli** if you need policy enforcement for smart wallets
+
+## Installation
+
+### Why "cargo install" instead of "stellar plugin install"?
+
+Currently, these plugins are installed from source using `cargo install --path .`. The Stellar CLI plugin registry will be available in a future release.
+
+### What Stellar CLI version do I need?
+
+Version **23.0 or higher** is required for plugin support. Check with:
+
+```bash
+stellar --version
+```
+
+### The plugin doesn't appear in "stellar plugins --list"
+
+Try reinstalling with `--force`:
+
+```bash
+cd stellar-mcp-generator
+cargo install --path . --force
+```
+
+## MCP Generator
+
+### TypeScript or Python - which should I choose?
+
+| Feature | TypeScript | Python |
+|---------|------------|--------|
+| PasskeyKit support | Yes | No |
+| Smart wallet signing | Yes | No |
+| Polling timeout | 30 seconds | 2 minutes |
+| Type safety | Compile-time | Runtime |
+
+**Choose TypeScript** if you need PasskeyKit or prefer strict typing.
+**Choose Python** if you prefer async/await or simpler setup.
+
+### What contracts can I generate from?
+
+Any deployed Soroban contract with a valid specification. The generator:
+1. Fetches the contract spec from the blockchain
+2. Parses all public functions
+3. Generates tools for each function
+
+### Can I generate from a local WASM file?
+
+Not currently. The contract must be deployed to a network (testnet, mainnet, etc.) so the generator can fetch its specification.
+
+### Why do I get "sequence number staleness" errors?
+
+This happens when the sequence number changes between transaction building and signing. The generated servers handle this automatically with the "rebuild with fresh sequence" pattern.
+
+### How do I use PasskeyKit?
+
+1. Deploy a wallet using `pnpm deploy-passkey <wasm-hash>`
+2. Add wallet config to your `.env`:
+   ```
+   WALLET_WASM_HASH=...
+   WALLET_CONTRACT_ID=...
+   WALLET_SIGNER_SECRET=...
+   ```
+3. Use `sign-and-submit` with `walletContractId` parameter
+
+See [PasskeyKit Integration](/mcp-generator/passkey-integration) for details.
+
+### What's the difference between signer and fee payer?
+
+| Role | What it does |
+|------|-------------|
+| **Signer** | Signs auth entries (authorizes the operation) |
+| **Fee payer** | Signs the envelope (pays transaction fees) |
+
+They can be the same key, but separating them enables sponsored transactions.
+
+## Policy CLI
+
+### What policy types are available?
+
+| Type | Description | Stateful? |
+|------|-------------|-----------|
+| Function whitelist | Only allow specific functions | No |
+| Contract whitelist | Only allow specific contracts | No |
+| Recipient whitelist | Only allow specific recipients | No |
+| Amount cap | Limit transaction amounts | Yes |
+| Rate limiting | Enforce time between transactions | Yes |
+
+### What's the difference between admin and non-admin mode?
+
+| Feature | Admin Mode | Non-Admin Mode |
+|---------|------------|----------------|
+| `init()` function | Yes | No |
+| `add_wallet()` function | Yes | No |
+| Per-wallet limits | Dynamic | Hardcoded |
+| Reconfigurable | Yes | No (redeploy) |
+
+Use admin mode for stateful policies (amount caps, rate limiting).
+
+### How do rate limits work?
+
+Rate limiting uses ledger sequences. Each ledger is approximately 5 seconds:
+
+| Ledgers | Time |
+|---------|------|
+| 12 | ~1 minute |
+| 720 | ~1 hour |
+| 17,280 | ~1 day |
+
+### Why does the wizard recommend admin mode?
+
+When you enable amount caps or rate limiting, the policy needs storage to track:
+- Per-wallet spending limits
+- Last transaction ledgers
+
+Admin mode allows you to configure these per-wallet instead of using global defaults.
+
+### Can I combine multiple policy types?
+
+Yes. Enable multiple types in the wizard:
+
+```
+Function whitelist: transfer, approve
+Recipient whitelist: GABC..., GDEF...
+Amount cap: 10000000
+Rate limiting: 100
+```
+
+The transaction fails if **any** policy rejects it.
+
+## Claude Desktop
+
+### Where is the config file?
+
+| Platform | Path |
+|----------|------|
+| macOS | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| Windows | `%APPDATA%\Claude\claude_desktop_config.json` |
+| Linux | `~/.config/claude/claude_desktop_config.json` |
+
+### Server not connecting?
+
+1. Use **absolute paths** in the config
+2. Verify the file exists: `ls /path/to/dist/index.js`
+3. Make sure you built the project: `pnpm build`
+4. Restart Claude Desktop completely (Cmd+Q, then reopen)
+
+### How do I see available tools?
+
+Ask Claude:
+```
+What tools do you have from my-token?
+```
+
+### Can I configure multiple servers?
+
+Yes, add multiple entries to `mcpServers`:
+
+```json
+{
+  "mcpServers": {
+    "token-factory": { ... },
+    "nft-marketplace": { ... }
+  }
+}
+```
+
+## Troubleshooting
+
+### "wasm32-unknown-unknown target not found"
+
+Install the WASM target:
+
+```bash
+rustup target add wasm32-unknown-unknown
+```
+
+### "stellar: command not found"
+
+Add Stellar CLI to your PATH:
+
+```bash
+export PATH="$HOME/.stellar:$PATH"
+```
+
+### "Module not found" when running MCP server
+
+Install dependencies:
+
+```bash
+cd my-mcp-server
+pnpm install
+pnpm build
+```
+
+### Contract build fails with "soroban_sdk" errors
+
+Update your Soroban SDK version:
+
+```bash
+cd contracts
+cargo update
+```
+
+### Bindings generation fails
+
+Make sure the contract builds successfully first:
+
+```bash
+make build
+make bindings
+```
+
+### Transaction fails with "TooMuch" or "TooSoon"
+
+Your transaction violates the policy:
+- **TooMuch**: Amount exceeds the configured cap
+- **TooSoon**: Rate limit not met (wait more ledgers)
+
+Check the policy configuration or increase limits via `add_wallet()`.
+
+## Getting Help
+
+- **GitHub Issues**: [stellar/stellar-mcp-generator](https://github.com/stellar/stellar-mcp-generator/issues)
+- **Discord**: [Stellar Developer Discord](https://discord.gg/stellar)
+- **Docs**: You're already here!

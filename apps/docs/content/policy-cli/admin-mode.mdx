@@ -1,0 +1,245 @@
+---
+title: Admin Mode
+---
+
+import { Steps } from 'nextra/components'
+
+# Admin Mode
+
+Admin mode enables dynamic policy configuration after deployment. It's recommended for stateful policies (amount caps, rate limiting).
+
+## Why Use Admin Mode?
+
+Without admin mode:
+- All limits are hardcoded at compile time
+- Changing limits requires redeploying the contract
+- All wallets use the same default limits
+
+With admin mode:
+- Initialize the contract with an admin address
+- Add wallets with custom per-wallet limits
+- Update limits without redeploying
+
+## When Is Admin Mode Recommended?
+
+The wizard recommends admin mode when you enable:
+- **Amount caps** - Per-wallet spending limits
+- **Rate limiting** - Per-wallet cooldown periods
+
+These features require storage to track per-wallet state.
+
+## Generated Functions
+
+### init()
+
+Initializes the contract with an admin address.
+
+```rust
+pub fn init(env: Env, admin: Address) {
+    if env.storage().persistent().has(&StorageKey::Admin) {
+        panic_with_error!(&env, Error::AlreadyInitialized);
+    }
+    env.storage().persistent().set(&StorageKey::Admin, &admin);
+}
+```
+
+**Parameters:**
+- `admin` - Address that will manage the policy
+
+**Errors:**
+- `AlreadyInitialized` (code 1) - Contract already initialized
+
+**Example:**
+
+```bash
+stellar contract invoke \
+    --id CDPOLICY... \
+    --source admin \
+    --network testnet \
+    -- init \
+    --admin GADMIN...
+```
+
+### add_wallet()
+
+Adds a wallet with custom limits.
+
+```rust
+pub fn add_wallet(
+    env: Env,
+    user: BytesN<32>,
+    max_amount: i128,
+    min_ledgers: u32,
+) {
+    let admin: Address = env.storage().persistent()
+        .get(&StorageKey::Admin)
+        .unwrap_or_else(|| panic_with_error!(&env, Error::NotInitialized));
+
+    admin.require_auth();
+
+    env.storage().persistent()
+        .set(&StorageKey::Limits(user.clone()), &max_amount);
+    env.storage().persistent()
+        .set(&StorageKey::MinLedgers(user), &min_ledgers);
+}
+```
+
+**Parameters:**
+- `user` - 32-byte signer public key
+- `max_amount` - Maximum transaction amount (stroops)
+- `min_ledgers` - Minimum ledgers between transactions
+
+**Errors:**
+- `NotInitialized` (code 2) - Contract not initialized
+- Authorization required - Only admin can call
+
+**Example:**
+
+```bash
+stellar contract invoke \
+    --id CDPOLICY... \
+    --source admin \
+    --network testnet \
+    -- add_wallet \
+    --user 1ed9636ecef7ad5b19534639ff3711c45e8a342433410174180cd5eb43b03945 \
+    --max_amount 10000000 \
+    --min_ledgers 100
+```
+
+## Storage Structure
+
+```rust
+#[contracttype]
+pub enum StorageKey {
+    Admin,                      // The admin address
+    Previous(BytesN<32>),       // Last txn ledger (per signer)
+    Limits(BytesN<32>),         // Max amount (per signer)
+    MinLedgers(BytesN<32>),     // Min ledgers (per signer)
+}
+```
+
+## Default Values
+
+If a wallet is not explicitly added, default values apply:
+
+| Setting | Default | Notes |
+|---------|---------|-------|
+| `max_amount` | 10,000,000 stroops | 1 XLM |
+| `min_ledgers` | 200 ledgers | ~16 minutes |
+
+These defaults are set in the wizard configuration.
+
+## Workflow
+
+<Steps>
+
+### Deploy Contract
+
+```bash
+make build
+make deploy-testnet
+# Save: POLICY_CONTRACT_ID=CDXYZ...
+```
+
+### Initialize with Admin
+
+```bash
+stellar contract invoke \
+    --id $POLICY_CONTRACT_ID \
+    --source admin-identity \
+    --network testnet \
+    -- init \
+    --admin $(stellar keys address admin-identity)
+```
+
+### Add Wallets
+
+```bash
+# Add a wallet with 10 XLM limit, 100 ledger cooldown
+stellar contract invoke \
+    --id $POLICY_CONTRACT_ID \
+    --source admin-identity \
+    --network testnet \
+    -- add_wallet \
+    --user abc123... \
+    --max_amount 100000000 \
+    --min_ledgers 100
+```
+
+### Verify Configuration
+
+The policy now enforces per-wallet limits:
+- Wallet `abc123...` can transfer up to 10 XLM per transaction
+- Must wait 100 ledgers (~8 min) between transactions
+- Other wallets use defaults (1 XLM, 200 ledgers)
+
+</Steps>
+
+## TypeScript Integration
+
+```typescript
+import { Client } from './my-policy-sdk';
+import { Keypair } from '@stellar/stellar-sdk';
+
+const adminKeypair = Keypair.fromSecret(process.env.ADMIN_SECRET!);
+
+const client = new Client({
+    contractId: process.env.POLICY_CONTRACT_ID!,
+    networkPassphrase: 'Test SDF Network ; September 2015',
+    rpcUrl: 'https://soroban-testnet.stellar.org',
+});
+
+// Initialize
+const initTx = await client.init({ admin: adminKeypair.publicKey() });
+initTx.sign(adminKeypair);
+await initTx.submit();
+
+// Add wallet
+const addTx = await client.add_wallet({
+    user: Buffer.from('abc123...', 'hex'),
+    max_amount: 100000000n,
+    min_ledgers: 100,
+});
+addTx.sign(adminKeypair);
+await addTx.submit();
+```
+
+## Non-Admin Mode
+
+If you disable admin mode, the generated contract:
+
+- Has no `init()` function
+- Has no `add_wallet()` function
+- Uses hardcoded defaults for all wallets
+- Cannot be reconfigured after deployment
+
+This is simpler but less flexible.
+
+## Security Considerations
+
+### Admin Key Management
+
+- Store admin keys securely
+- Consider using a multi-sig for admin operations
+- Never commit admin secrets to source control
+
+### Rate Limiting Attacks
+
+An attacker could trigger rate limits by submitting transactions. Consider:
+- Setting appropriate cooldown periods
+- Using per-recipient rate limits
+
+### Amount Cap Evasion
+
+Users could split transactions to evade caps. Consider:
+- Implementing cumulative caps (more complex)
+- Setting per-day limits (requires additional storage)
+
+## Migrating to Admin Mode
+
+If you deployed without admin mode and need to add it:
+
+1. Generate a new policy with admin mode enabled
+2. Deploy the new contract
+3. Update smart wallet configurations to use new policy
+4. Deprecate old policy

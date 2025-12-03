@@ -1,0 +1,263 @@
+---
+title: TypeScript MCP Server
+---
+
+# TypeScript MCP Server Example
+
+This example shows a TypeScript MCP server generated from a Token Factory contract.
+
+## Generation Command
+
+```bash
+stellar mcp generate \
+    --contract-id CAHLJEQUCNTV7JPAPCMLCBIHOX7FFB57DUARJ6XGTW27FPCVKKY7JM2A \
+    --network testnet \
+    --lang typescript \
+    --name my-token \
+    --output my-token-mcp
+```
+
+## Project Structure
+
+```
+my-token-mcp/
+├── src/
+│   ├── index.ts              # MCP server (16 tools registered)
+│   ├── lib/
+│   │   ├── utils.ts          # signTransaction()
+│   │   ├── passkey.ts        # signAndSendWithPasskey()
+│   │   ├── submit.ts         # submitTransaction()
+│   │   └── transaction.ts    # parseTransactionResult()
+│   ├── tools/
+│   │   └── my-token.ts       # Tool implementations
+│   ├── schemas/
+│   │   └── my-token.ts       # Zod validation schemas
+│   └── bindings/
+│       ├── src/index.ts      # Stellar SDK bindings
+│       └── package.json
+├── deploy-wallet.ts          # PasskeyKit deployment
+├── package.json
+├── tsconfig.json
+└── .env.example
+```
+
+## Generated Tools
+
+The Token Factory contract exposes 16 functions, each becoming an MCP tool:
+
+| Tool | Description |
+|------|-------------|
+| `set-allowlist-wasm` | Set WASM hash for Allowlist token |
+| `set-blocklist-wasm` | Set WASM hash for Blocklist token |
+| `set-capped-wasm` | Set WASM hash for Capped token |
+| `set-pausable-wasm` | Set WASM hash for Pausable token |
+| `set-vault-wasm` | Set WASM hash for Vault token |
+| `deploy-token` | Deploy a new token contract |
+| `get-deployed-tokens` | List all deployed tokens |
+| `get-tokens-by-type` | Filter tokens by type |
+| `get-tokens-by-admin` | Filter tokens by admin |
+| `get-token-count` | Get total token count |
+| `get-admin` | Get current admin address |
+| `get-pending-admin` | Get pending admin (if transferring) |
+| `initiate-admin-transfer` | Start admin transfer |
+| `accept-admin-transfer` | Accept admin transfer |
+| `cancel-admin-transfer` | Cancel admin transfer |
+| `sign-and-submit` | Sign and submit transaction |
+
+## Server Entry Point
+
+```typescript
+// src/index.ts
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { z } from 'zod';
+import * as tools from './tools/my-token.js';
+import * as schemas from './schemas/my-token.js';
+
+const CONTRACT_ID = process.env.CONTRACT_ID
+    || 'CAHLJEQUCNTV7JPAPCMLCBIHOX7FFB57DUARJ6XGTW27FPCVKKY7JM2A';
+const RPC_URL = process.env.RPC_URL
+    || 'https://soroban-testnet.stellar.org';
+const NETWORK_PASSPHRASE = process.env.NETWORK_PASSPHRASE
+    || 'Test SDF Network ; September 2015';
+
+const server = new McpServer({
+    name: 'soroban-contract-mcp',
+    version: '1.0.0',
+});
+
+const config = { contractId: CONTRACT_ID, rpcUrl: RPC_URL, networkPassphrase: NETWORK_PASSPHRASE };
+
+// Register deploy-token tool
+server.tool(
+    'deploy-token',
+    `Deploy a new token contract
+
+# Arguments
+* admin - Admin address
+* manager - Manager address
+* name - Token name
+* symbol - Token symbol
+* decimals - Decimal places
+* initial_supply - Initial supply (as string)
+* token_type - Token type (Allowlist, Blocklist, Capped, Pausable, Vault)
+* salt - 64-character hex string for deterministic deployment`,
+    {
+        admin: z.string().length(56),
+        manager: z.string().length(56),
+        name: z.string(),
+        symbol: z.string(),
+        decimals: z.number(),
+        initial_supply: z.string(),
+        token_type: schemas.TokenTypeSchema,
+        salt: z.string().length(64),
+        cap: z.string().nullable().optional(),
+        asset: z.string().nullable().optional(),
+        decimals_offset: z.number().nullable().optional(),
+    },
+    async (params) => {
+        const result = await tools.deployToken(params, config);
+        return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
+        };
+    }
+);
+
+// ... 15 more tools registered
+
+const transport = new StdioServerTransport();
+await server.connect(transport);
+```
+
+## Tool Implementation
+
+```typescript
+// src/tools/my-token.ts
+import { Client } from '../bindings/dist/index.js';
+
+export interface ContractConfig {
+    contractId: string;
+    rpcUrl: string;
+    networkPassphrase: string;
+}
+
+function createClient(config: ContractConfig): Client {
+    return new Client({
+        contractId: config.contractId,
+        networkPassphrase: config.networkPassphrase,
+        rpcUrl: config.rpcUrl,
+    });
+}
+
+export async function deployToken(
+    params: DeployTokenParams,
+    config: ContractConfig
+): Promise<{ xdr: string; simulationResult?: any }> {
+    const client = createClient(config);
+
+    // Convert types for Stellar SDK
+    const convertedParams = {
+        ...params,
+        salt: Buffer.from(params.salt, 'hex'),
+        initial_supply: BigInt(params.initial_supply),
+        cap: params.cap ? BigInt(params.cap) : undefined,
+    };
+
+    const assembled = await client.deploy_token(convertedParams);
+
+    return {
+        xdr: assembled.built!.toXDR(),
+        simulationResult: assembled.result,
+    };
+}
+```
+
+## Zod Schemas
+
+```typescript
+// src/schemas/my-token.ts
+import { z } from 'zod';
+
+export const TokenTypeSchema = z.union([
+    z.object({ tag: z.literal('Allowlist') }),
+    z.object({ tag: z.literal('Blocklist') }),
+    z.object({ tag: z.literal('Capped') }),
+    z.object({ tag: z.literal('Pausable') }),
+    z.object({ tag: z.literal('Vault') }),
+]);
+
+export const TokenInfoSchema = z.object({
+    address: z.string().length(56),
+    admin: z.string().length(56),
+    name: z.string().nullable(),
+    timestamp: z.string(),
+    token_type: TokenTypeSchema,
+});
+```
+
+## Running the Server
+
+```bash
+# Install dependencies
+cd my-token-mcp
+pnpm install
+
+# Build bindings and server
+pnpm build
+
+# Set environment variables
+export CONTRACT_ID=CAHLJEQUCNTV7JPAPCMLCBIHOX7FFB57DUARJ6XGTW27FPCVKKY7JM2A
+export RPC_URL=https://soroban-testnet.stellar.org
+export NETWORK_PASSPHRASE="Test SDF Network ; September 2015"
+
+# Run server
+pnpm start
+```
+
+## Claude Desktop Configuration
+
+```json
+{
+    "mcpServers": {
+        "my-token": {
+            "command": "node",
+            "args": ["/path/to/my-token-mcp/dist/index.js"],
+            "env": {
+                "CONTRACT_ID": "CAHLJEQUCNTV7JPAPCMLCBIHOX7FFB57DUARJ6XGTW27FPCVKKY7JM2A",
+                "RPC_URL": "https://soroban-testnet.stellar.org",
+                "NETWORK_PASSPHRASE": "Test SDF Network ; September 2015"
+            }
+        }
+    }
+}
+```
+
+## Example Conversation
+
+```
+User: What tokens have been deployed?
+
+Claude: I'll check the deployed tokens.
+
+[Calls get-deployed-tokens]
+
+Here are the deployed tokens:
+1. AllowlistToken (CABC...) - Deployed by GADMIN...
+2. CappedToken (CDEF...) - Deployed by GADMIN...
+
+User: Deploy a new Pausable token called "MyToken"
+
+Claude: I'll deploy a new Pausable token.
+
+[Calls deploy-token with params]
+
+Transaction built. Let me sign and submit.
+
+[Calls sign-and-submit]
+
+Token deployed successfully:
+- Name: MyToken
+- Symbol: MTK
+- Type: Pausable
+- Address: CNEW...
+```

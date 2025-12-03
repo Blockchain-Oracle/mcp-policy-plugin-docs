@@ -1,0 +1,282 @@
+---
+title: Makefile Workflows
+---
+
+# Makefile Workflows
+
+Generated policy projects include a Makefile with common development tasks.
+
+## Available Targets
+
+| Target | Description |
+|--------|-------------|
+| `make build` | Compile contract to WASM |
+| `make test` | Run unit tests |
+| `make deploy-testnet` | Deploy to Stellar testnet |
+| `make deploy-mainnet` | Deploy to Stellar mainnet |
+| `make bindings` | Generate TypeScript SDK |
+
+## make build
+
+Compiles the Rust contract to WebAssembly.
+
+```bash
+make build
+```
+
+**What it does:**
+
+```bash
+cd contracts && cargo build --target wasm32-unknown-unknown --release
+```
+
+**Output:**
+
+```
+contracts/target/wasm32-unknown-unknown/release/my_policy.wasm
+```
+
+**Time:** ~30-60 seconds (first build), ~5-10 seconds (cached)
+
+## make test
+
+Runs all unit tests.
+
+```bash
+make test
+```
+
+**What it does:**
+
+```bash
+cd contracts && cargo test
+```
+
+**Output:**
+
+```
+running 13 tests
+test test::test_init_success ... ok
+test test::test_already_initialized ... ok
+test test::test_amount_cap_allows_within_limit ... ok
+test test::test_amount_cap_blocks_over_limit ... ok
+test test::test_rate_limiting_allows_first_transaction ... ok
+test test::test_rate_limiting_blocks_too_soon ... ok
+test test::test_rate_limiting_allows_after_waiting ... ok
+test test::test_recipient_whitelist_allows ... ok
+test test::test_recipient_whitelist_blocks ... ok
+...
+
+test result: ok. 13 passed; 0 failed
+```
+
+**Time:** ~5-10 seconds
+
+## make deploy-testnet
+
+Deploys the contract to Stellar testnet.
+
+```bash
+make deploy-testnet
+```
+
+**Interactive prompts:**
+
+```
+═══════════════════════════════════════════════════════════
+              Deploy to Stellar Testnet
+═══════════════════════════════════════════════════════════
+
+Choose deployment method:
+  1. Use Stellar CLI identity (e.g., "me", "admin")
+  2. Enter secret key directly
+
+Your choice [1/2]: 1
+
+Enter identity name: admin
+
+Deploying...
+
+Contract deployed successfully!
+Contract ID: CDXYZ789...
+
+Save this contract ID in your .env file.
+```
+
+**What it does:**
+
+```bash
+stellar contract deploy \
+    --wasm contracts/target/wasm32-unknown-unknown/release/my_policy.wasm \
+    --source "$identity" \
+    --rpc-url https://soroban-testnet.stellar.org \
+    --network-passphrase "Test SDF Network ; September 2015"
+```
+
+## make deploy-mainnet
+
+Deploys to Stellar mainnet.
+
+```bash
+make deploy-mainnet
+```
+
+**Warning displayed:**
+
+```
+═══════════════════════════════════════════════════════════
+              ⚠️  MAINNET DEPLOYMENT WARNING
+═══════════════════════════════════════════════════════════
+
+You are about to deploy to MAINNET (production network).
+This will use REAL XLM and is irreversible.
+
+Are you sure you want to continue? [y/N]: y
+```
+
+**What it does:**
+
+```bash
+stellar contract deploy \
+    --wasm contracts/target/wasm32-unknown-unknown/release/my_policy.wasm \
+    --source "$identity" \
+    --rpc-url https://soroban-mainnet.stellar.org \
+    --network-passphrase "Public Global Stellar Network ; September 2015"
+```
+
+## make bindings
+
+Generates TypeScript SDK from the deployed contract.
+
+```bash
+make bindings
+```
+
+**Requirements:**
+- Contract must be built (`make build`)
+- Recommended: Contract deployed to get accurate network config
+
+**What it does:**
+
+```bash
+# Step 1: Generate bindings
+stellar contract bindings typescript \
+    --wasm contracts/target/wasm32-unknown-unknown/release/my_policy.wasm \
+    --rpc-url https://soroban-testnet.stellar.org \
+    --network-passphrase "Test SDF Network ; September 2015" \
+    --output-dir my-policy-sdk
+
+# Step 2: Fix missing types
+bash scripts/fix-bindings.sh my-policy-sdk
+
+# Step 3: Success message
+echo "✅ Bindings generated!"
+echo ""
+echo "Next steps:"
+echo "  cd my-policy-sdk"
+echo "  pnpm install"
+echo "  pnpm build"
+```
+
+**Output:**
+
+```
+my-policy-sdk/
+├── src/
+│   └── index.ts     # Generated client with SignerKey, Context types
+├── package.json
+└── tsconfig.json
+```
+
+## Complete Workflow
+
+Here's the typical development workflow:
+
+```bash
+# 1. Generate policy
+stellar policy generate
+cd my-policy
+
+# 2. Build contract
+make build
+
+# 3. Run tests
+make test
+
+# 4. Deploy to testnet
+make deploy-testnet
+# Note the contract ID
+
+# 5. Generate TypeScript SDK
+make bindings
+
+# 6. Install SDK dependencies
+cd my-policy-sdk
+pnpm install
+pnpm build
+
+# 7. Use in your application
+cd ..
+pnpm install
+pnpm example
+```
+
+## Customizing the Makefile
+
+The generated Makefile is a starting point. You can add custom targets:
+
+```makefile
+# Add to Makefile
+
+# Format Rust code
+fmt:
+	cd contracts && cargo fmt
+
+# Run clippy lints
+lint:
+	cd contracts && cargo clippy --target wasm32-unknown-unknown
+
+# Clean build artifacts
+clean:
+	cd contracts && cargo clean
+	rm -rf my-policy-sdk
+
+# Run integration tests
+integration-test:
+	pnpm test
+```
+
+## Troubleshooting
+
+### "wasm32-unknown-unknown target not found"
+
+Install the WASM target:
+
+```bash
+rustup target add wasm32-unknown-unknown
+```
+
+### "stellar: command not found"
+
+Install or update Stellar CLI:
+
+```bash
+cargo install stellar-cli
+```
+
+### "Contract build failed"
+
+Check for Rust errors:
+
+```bash
+cd contracts && cargo build --target wasm32-unknown-unknown --release 2>&1
+```
+
+### "Bindings generation failed"
+
+Make sure the contract builds successfully first:
+
+```bash
+make build
+make bindings
+```

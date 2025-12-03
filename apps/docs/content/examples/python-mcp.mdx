@@ -1,0 +1,390 @@
+---
+title: Python MCP Server
+---
+
+# Python MCP Server Example
+
+This example shows a Python MCP server generated from the same Token Factory contract.
+
+## Generation Command
+
+```bash
+stellar mcp generate \
+    --contract-id CAHLJEQUCNTV7JPAPCMLCBIHOX7FFB57DUARJ6XGTW27FPCVKKY7JM2A \
+    --network testnet \
+    --lang python \
+    --name mcp-server \
+    --output mcp-server
+```
+
+## Project Structure
+
+```
+mcp-server/
+├── server.py                 # FastMCP server (16 tools)
+├── src/
+│   ├── __init__.py
+│   ├── contract_client.py    # Contract client wrapper
+│   ├── lib/
+│   │   ├── __init__.py
+│   │   ├── utils.py          # sign_transaction()
+│   │   └── submit.py         # submit_transaction()
+│   └── bindings/
+│       └── bindings.py       # Auto-generated bindings
+├── pyproject.toml
+├── .env.example
+└── uv.lock
+```
+
+## Server Entry Point
+
+```python
+# server.py
+from mcp.server.fastmcp import FastMCP, Context
+from typing import Optional, Dict, Any, List
+from dotenv import load_dotenv
+import os
+
+from src.contract_client import ContractClient, ContractConfig
+
+load_dotenv()
+
+mcp = FastMCP("mcp-server")
+
+config = ContractConfig(
+    contract_id=os.getenv("CONTRACT_ID",
+        "CAHLJEQUCNTV7JPAPCMLCBIHOX7FFB57DUARJ6XGTW27FPCVKKY7JM2A"),
+    rpc_url=os.getenv("RPC_URL",
+        "https://soroban-testnet.stellar.org"),
+    network_passphrase=os.getenv("NETWORK_PASSPHRASE",
+        "Test SDF Network ; September 2015")
+)
+
+client = ContractClient(config)
+
+
+@mcp.tool()
+async def deploy_token(
+    admin: str,
+    manager: str,
+    name: str,
+    symbol: str,
+    decimals: int,
+    initial_supply: str,
+    token_type: Dict[str, Any],
+    salt: str,
+    cap: Optional[str] = None,
+    asset: Optional[str] = None,
+    decimals_offset: Optional[int] = None,
+    ctx: Optional[Context] = None
+) -> Dict[str, Any]:
+    """Deploy a new token contract
+
+    Arguments:
+    * admin - Admin address (56 characters)
+    * manager - Manager address (56 characters)
+    * name - Token name
+    * symbol - Token symbol
+    * decimals - Decimal places
+    * initial_supply - Initial supply as string
+    * token_type - Token type: {tag: "Allowlist|Blocklist|Capped|Pausable|Vault"}
+    * salt - 64-character hex string
+    * cap - Optional cap for Capped tokens
+    * asset - Optional underlying asset
+    * decimals_offset - Optional decimals offset
+    """
+    if ctx:
+        await ctx.info(f"Deploying {token_type['tag']} token: {name}")
+
+    result = await client.deploy_token(
+        admin=admin,
+        manager=manager,
+        name=name,
+        symbol=symbol,
+        decimals=decimals,
+        initial_supply=initial_supply,
+        token_type=token_type,
+        salt=bytes.fromhex(salt),
+        cap=cap,
+        asset=asset,
+        decimals_offset=decimals_offset,
+    )
+
+    if ctx:
+        await ctx.info("Token deployment transaction built")
+
+    return result
+
+
+@mcp.tool()
+async def get_deployed_tokens(
+    ctx: Optional[Context] = None
+) -> List[Dict[str, Any]]:
+    """Get all deployed tokens from the factory
+
+    Returns a list of TokenInfo objects with address, admin, name, type.
+    """
+    if ctx:
+        await ctx.info("Fetching deployed tokens...")
+
+    result = await client.get_deployed_tokens()
+
+    if ctx:
+        await ctx.info(f"Found {len(result)} tokens")
+
+    return result
+
+
+@mcp.tool()
+async def sign_and_submit(
+    xdr: str,
+    secret_key: Optional[str] = None,
+    ctx: Optional[Context] = None
+) -> Dict[str, Any]:
+    """Sign and submit a transaction
+
+    Arguments:
+    * xdr - Unsigned transaction XDR
+    * secret_key - Stellar secret key (S...). Uses SIGNER_SECRET env if not provided.
+    """
+    from src.lib.utils import sign_transaction
+    from src.lib.submit import submit_transaction
+
+    if ctx:
+        await ctx.info("Signing transaction...")
+
+    signed_xdr = await sign_transaction(xdr, secret_key)
+
+    if ctx:
+        await ctx.info("Submitting transaction...")
+
+    result = await submit_transaction(signed_xdr)
+
+    if ctx:
+        await ctx.info(f"Transaction {result['status']}: {result['hash']}")
+
+    return result
+
+
+# ... 13 more tools registered
+
+if __name__ == "__main__":
+    mcp.run()
+```
+
+## Contract Client
+
+```python
+# src/contract_client.py
+from dataclasses import dataclass
+from typing import Any, Dict, Optional, List
+from enum import Enum
+
+from src.bindings.bindings import ClientAsync as GeneratedClient
+
+
+@dataclass
+class ContractConfig:
+    contract_id: str
+    rpc_url: str
+    network_passphrase: str
+
+
+class ContractClient:
+    def __init__(self, config: ContractConfig):
+        self.config = config
+        self.client = GeneratedClient(
+            contract_id=config.contract_id,
+            rpc_url=config.rpc_url,
+            network_passphrase=config.network_passphrase
+        )
+
+    async def deploy_token(
+        self,
+        admin: str,
+        manager: str,
+        name: str,
+        symbol: str,
+        decimals: int,
+        initial_supply: str,
+        token_type: Dict[str, Any],
+        salt: bytes,
+        **kwargs
+    ) -> Dict[str, Any]:
+        # Convert MCP params to Stellar SDK types
+        params = convert_mcp_params({
+            "admin": admin,
+            "manager": manager,
+            "name": name,
+            "symbol": symbol,
+            "decimals": decimals,
+            "initial_supply": initial_supply,
+            "token_type": token_type,
+            "salt": salt,
+            **kwargs
+        })
+
+        assembled = await self.client.deploy_token(**params)
+
+        return {
+            "xdr": assembled.to_xdr(),
+            "simulationResult": serialize_result(assembled.result())
+        }
+
+    async def get_deployed_tokens(self) -> List[Dict[str, Any]]:
+        assembled = await self.client.get_deployed_tokens()
+        result = assembled.result()
+        return [serialize_result(token) for token in result]
+
+
+def convert_mcp_params(obj: Any) -> Any:
+    """Convert MCP JSON to Stellar SDK types"""
+    if obj is None:
+        return None
+
+    if isinstance(obj, dict):
+        # Enum conversion: {"tag": "Capped"} → TokenType instance
+        if "tag" in obj and len(obj) <= 2:
+            from src.bindings.bindings import TokenType, TokenTypeKind
+            return TokenType(kind=TokenTypeKind[obj["tag"]])
+
+        return {k: convert_mcp_params(v) for k, v in obj.items()}
+
+    if isinstance(obj, str):
+        # Numeric strings for i128 fields
+        if obj.isdigit():
+            return int(obj)
+
+    return obj
+
+
+def serialize_result(result: Any) -> Any:
+    """Convert Stellar SDK types to JSON"""
+    if isinstance(result, Enum):
+        return result.value
+
+    if hasattr(result, '__dataclass_fields__'):
+        from dataclasses import asdict
+        return serialize_result(asdict(result))
+
+    if isinstance(result, bytes):
+        return result.hex()
+
+    if isinstance(result, dict):
+        return {k: serialize_result(v) for k, v in result.items()}
+
+    if isinstance(result, list):
+        return [serialize_result(item) for item in result]
+
+    return result
+```
+
+## Dependencies
+
+```toml
+# pyproject.toml
+[project]
+name = "mcp-server"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp[cli]>=1.22.0",
+    "stellar-sdk[aiohttp]>=13.1.0",
+    "stellar-contract-bindings>=0.5.0b0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+]
+```
+
+## Running the Server
+
+```bash
+# Install dependencies
+cd mcp-server
+uv sync
+
+# Set environment variables
+export CONTRACT_ID=CAHLJEQUCNTV7JPAPCMLCBIHOX7FFB57DUARJ6XGTW27FPCVKKY7JM2A
+export RPC_URL=https://soroban-testnet.stellar.org
+export NETWORK_PASSPHRASE="Test SDF Network ; September 2015"
+
+# Run server
+uv run server.py
+```
+
+## Claude Desktop Configuration
+
+```json
+{
+    "mcpServers": {
+        "mcp-server": {
+            "command": "uv",
+            "args": [
+                "--directory",
+                "/path/to/mcp-server",
+                "run",
+                "server.py"
+            ],
+            "env": {
+                "CONTRACT_ID": "CAHLJEQUCNTV7JPAPCMLCBIHOX7FFB57DUARJ6XGTW27FPCVKKY7JM2A",
+                "RPC_URL": "https://soroban-testnet.stellar.org",
+                "NETWORK_PASSPHRASE": "Test SDF Network ; September 2015",
+                "SIGNER_SECRET": "SXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+            }
+        }
+    }
+}
+```
+
+## Key Differences from TypeScript
+
+| Feature | Python | TypeScript |
+|---------|--------|------------|
+| Framework | FastMCP | MCP SDK |
+| Async | Native async/await | Promises |
+| Logging | `ctx.info()`, `ctx.error()` | Console |
+| PasskeyKit | Not supported | Full support |
+| Type system | Runtime hints | Compile-time |
+| Polling timeout | 2 minutes | 30 seconds |
+
+## Example Conversation
+
+```
+User: Show me all deployed tokens
+
+Claude: I'll fetch the deployed tokens.
+
+[Calls get_deployed_tokens]
+
+Here are the deployed tokens:
+1. AllowlistToken
+   - Address: CABC...
+   - Admin: GADMIN...
+   - Type: Allowlist
+
+2. CappedToken
+   - Address: CDEF...
+   - Admin: GADMIN...
+   - Type: Capped
+   - Cap: 1,000,000
+
+User: Deploy a Vault token called "Treasury"
+
+Claude: I'll deploy a Vault token.
+
+[Calls deploy_token with Vault type]
+
+Transaction built. Signing and submitting...
+
+[Calls sign_and_submit]
+
+Treasury token deployed:
+- Address: CNEW...
+- Type: Vault
+- Transaction: abc123...
+```

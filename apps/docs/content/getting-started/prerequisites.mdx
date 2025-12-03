@@ -1,0 +1,167 @@
+---
+title: Prerequisites
+---
+
+# Prerequisites
+
+Before installing the Stellar MCP Plugins, ensure you have the following tools installed.
+
+## Required for Both Plugins
+
+### Rust & Cargo
+
+The plugins are written in Rust and installed via Cargo.
+
+```bash
+# Install Rust
+curl https://sh.rustup.rs -sSf | sh
+
+# Verify installation
+rustc --version
+cargo --version
+```
+
+### Stellar CLI
+
+The Stellar CLI is required as the base for these plugins.
+
+```bash
+# Install via the official script
+curl -sSL https://stellar.org/install | bash
+
+# Or install via Cargo
+cargo install stellar-cli
+
+# Verify installation
+stellar --version
+```
+
+> [!NOTE]
+> You need Stellar CLI version **23.0+** for plugin support.
+
+### WebAssembly Target
+
+Required for compiling Soroban contracts:
+
+```bash
+rustup target add wasm32-unknown-unknown
+```
+
+## For TypeScript MCP Servers
+
+If you plan to generate TypeScript MCP servers:
+
+### Node.js
+
+Version 18 or higher is required.
+
+```bash
+# Check your version
+node --version
+
+# Should be v18.x or higher
+```
+
+### pnpm (Recommended)
+
+We recommend pnpm for faster, more reliable package management.
+
+```bash
+# Install pnpm
+npm install -g pnpm
+
+# Verify
+pnpm --version
+```
+
+## For Python MCP Servers
+
+If you plan to generate Python MCP servers:
+
+### Python
+
+Version 3.10 or higher is required.
+
+```bash
+# Check your version
+python3 --version
+
+# Should be 3.10.x or higher
+```
+
+### uv Package Manager
+
+We use `uv` for fast Python dependency management.
+
+```bash
+# Install uv
+pip install uv
+
+# Or with pipx
+pipx install uv
+
+# Verify
+uv --version
+```
+
+### stellar-contract-bindings
+
+Required for Python bindings generation:
+
+```bash
+uv pip install stellar-contract-bindings
+```
+
+> [!TIP]
+> The `stellar-contract-bindings` package version should be **0.5.0+** for best compatibility.
+
+## Quick Verification
+
+Run these commands to verify all prerequisites are installed:
+
+```bash
+# Core tools
+rustc --version          # Rust compiler
+cargo --version          # Rust package manager
+stellar --version        # Stellar CLI
+
+# For TypeScript
+node --version           # Node.js 18+
+pnpm --version           # pnpm package manager
+
+# For Python
+python3 --version        # Python 3.10+
+uv --version             # uv package manager
+```
+
+## Common Issues
+
+### "stellar: command not found"
+
+Make sure the Stellar CLI is in your PATH:
+
+```bash
+# Add to your shell profile (~/.bashrc, ~/.zshrc, etc.)
+export PATH="$HOME/.stellar:$PATH"
+```
+
+### "rustup target add fails"
+
+Try updating rustup first:
+
+```bash
+rustup update
+rustup target add wasm32-unknown-unknown
+```
+
+### "pip: command not found"
+
+On some systems, use `pip3` instead:
+
+```bash
+pip3 install uv
+```
+
+## Next Steps
+
+Once all prerequisites are installed, proceed to [Installation](/getting-started/installation).

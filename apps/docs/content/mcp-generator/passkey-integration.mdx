@@ -1,0 +1,272 @@
+---
+title: PasskeyKit Integration
+---
+
+import { Steps } from 'nextra/components'
+
+# PasskeyKit Integration
+
+TypeScript MCP servers include full PasskeyKit integration for smart wallet authentication. This enables users to sign transactions using passkeys (WebAuthn) instead of secret keys.
+
+> [!NOTE]
+> PasskeyKit is only available in TypeScript servers. Python servers don't support passkey signing.
+
+## What is PasskeyKit?
+
+PasskeyKit is a Stellar smart wallet SDK that enables:
+- Passkey-based authentication (biometric, security keys)
+- Multi-signer support
+- Policy enforcement
+- Gasless transactions (with fee sponsors)
+
+## Generated Files
+
+TypeScript servers include:
+
+```
+my-token-mcp/
+├── src/lib/passkey.ts       # PasskeyKit utilities
+├── deploy-wallet.ts          # Wallet deployment script
+└── .env.example              # Wallet configuration
+```
+
+## Environment Variables
+
+```bash
+# PasskeyKit Configuration
+WALLET_WASM_HASH=<56-character-hex-hash>
+WALLET_CONTRACT_ID=<wallet-contract-address>
+WALLET_SIGNER_SECRET=S...     # Signs auth entries
+DEPLOYER_SECRET=S...          # For wallet deployment
+```
+
+## Deploying a Smart Wallet
+
+Use the included deployment script:
+
+<Steps>
+
+### Upload the Wallet WASM
+
+First, upload the PasskeyKit wallet contract to get a WASM hash:
+
+```bash
+stellar contract upload \
+  --wasm wallet.wasm \
+  --source your-key \
+  --network testnet
+```
+
+Save the returned WASM hash (56-character hex string).
+
+### Run the Deployment Script
+
+```bash
+# Set your deployer secret
+export DEPLOYER_SECRET=SXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+
+# Deploy the wallet
+pnpm deploy-passkey <wasm-hash>
+```
+
+### Save the Output
+
+The script outputs:
+
+```
+Wallet deployed successfully!
+
+Add to your .env:
+WALLET_WASM_HASH=abc123...
+WALLET_CONTRACT_ID=CDXYZ...
+WALLET_SIGNER_SECRET=SDEF...
+```
+
+</Steps>
+
+## How Passkey Signing Works
+
+PasskeyKit uses a two-phase signing approach:
+
+```
+Phase 1: Auth Entry Signing
+  - Uses WALLET_SIGNER_SECRET
+  - Signs the invocation authorization
+  - Sequence-independent
+
+Phase 2: Envelope Signing
+  - Uses fee payer secret
+  - Signs the transaction envelope
+  - Pays transaction fees
+```
+
+### signAndSendWithPasskey()
+
+Located in `src/lib/passkey.ts`:
+
+```typescript
+export async function signAndSendWithPasskey(
+  xdr: string,
+  walletContractId: string,
+  feePayerSecret: string
+): Promise<any> {
+  // Initialize PasskeyKit
+  const passkey = getPasskeyWallet(walletContractId);
+
+  // Step 1: Sign auth entries with wallet signer
+  const signerSecret = process.env.WALLET_SIGNER_SECRET;
+  const signerKeypair = Keypair.fromSecret(signerSecret);
+
+  const assembled = await passkey.sign(
+    TransactionBuilder.fromXDR(xdr, networkPassphrase),
+    signerKeypair
+  );
+
+  // Step 2: Extract signed auth
+  const signedAuth = assembled.operations[0].auth;
+
+  // Step 3: Fetch fresh account (fee payer)
+  const feePayerKeypair = Keypair.fromSecret(feePayerSecret);
+  const account = await server.getAccount(feePayerKeypair.publicKey());
+
+  // Step 4: Rebuild with fresh sequence
+  const rebuilt = new TransactionBuilder(account, {
+    fee: '10000000',  // 1 XLM max fee
+    networkPassphrase,
+  })
+    .addOperation(
+      Operation.invokeHostFunction({
+        func: assembled.operations[0].func,
+        auth: signedAuth,
+      })
+    )
+    .setTimeout(30)
+    .build();
+
+  // Step 5: Simulate
+  const simResult = await server.simulateTransaction(rebuilt);
+  const final = SorobanRpc.assembleTransaction(rebuilt, simResult);
+
+  // Step 6: Sign envelope with fee payer
+  final.sign(feePayerKeypair);
+
+  // Step 7: Submit and poll
+  const response = await server.sendTransaction(final);
+
+  for (let i = 0; i < 60; i++) {
+    const result = await server.getTransaction(response.hash);
+    if (result.status === 'SUCCESS') {
+      return {
+        hash: response.hash,
+        status: 'SUCCESS',
+        parsedResult: parseTransactionResult(result.resultMetaXdr),
+      };
+    }
+    if (result.status === 'FAILED') {
+      return { hash: response.hash, status: 'FAILED' };
+    }
+    await sleep(500);
+  }
+
+  return { hash: response.hash, status: 'TIMEOUT' };
+}
+```
+
+## Using with MCP Tools
+
+The `sign-and-submit` tool supports passkey signing:
+
+```typescript
+// With passkey (walletContractId provided)
+server.tool('sign-and-submit', schema, async (params) => {
+  if (params.walletContractId) {
+    return await signAndSendWithPasskey(
+      params.xdr,
+      params.walletContractId,
+      params.secretKey  // Fee payer secret
+    );
+  }
+  // Regular signing...
+});
+```
+
+### Example Conversation
+
+```
+User: Deploy a Capped token using my smart wallet
+
+Claude: I'll deploy a Capped token using your smart wallet.
+
+1. First, let me build the transaction...
+   [Calls deploy-token tool]
+
+2. Now I'll sign and submit using your wallet...
+   [Calls sign-and-submit with walletContractId]
+
+The token has been deployed:
+- Address: CDXYZ...
+- Type: Capped
+- Transaction: abc123...
+```
+
+## Claude Desktop Configuration
+
+Add wallet configuration to your MCP server:
+
+```json
+{
+  "mcpServers": {
+    "my-token": {
+      "command": "node",
+      "args": ["/path/to/my-token-mcp/dist/index.js"],
+      "env": {
+        "CONTRACT_ID": "CAHLJEQUCNTV7JPAPCMLCBIHOX7FFB57DUARJ6XGTW27FPCVKKY7JM2A",
+        "RPC_URL": "https://soroban-testnet.stellar.org",
+        "NETWORK_PASSPHRASE": "Test SDF Network ; September 2015",
+        "WALLET_WASM_HASH": "abc123...",
+        "WALLET_CONTRACT_ID": "CDXYZ...",
+        "WALLET_SIGNER_SECRET": "SDEF..."
+      }
+    }
+  }
+}
+```
+
+## Signer vs Fee Payer
+
+| Role | Environment Variable | Purpose |
+|------|---------------------|---------|
+| **Wallet Signer** | `WALLET_SIGNER_SECRET` | Signs auth entries (authorizes operations) |
+| **Fee Payer** | (passed to function) | Signs envelope, pays fees |
+
+They can be the same key, but separating them enables:
+- Sponsored transactions (fee payer is different from user)
+- Multi-sig setups
+- Policy enforcement
+
+## Troubleshooting
+
+### "WALLET_WASM_HASH not set"
+
+Set the environment variable:
+```bash
+export WALLET_WASM_HASH=abc123...
+```
+
+### "Wallet contract not found"
+
+The wallet contract may not be deployed. Run:
+```bash
+pnpm deploy-passkey <wasm-hash>
+```
+
+### "Auth entry signing failed"
+
+Check that `WALLET_SIGNER_SECRET` is a valid Stellar secret key (starts with 'S').
+
+### "Fee payer account not found"
+
+The fee payer account needs to exist and be funded:
+```bash
+stellar keys fund <public-key> --network testnet
+```

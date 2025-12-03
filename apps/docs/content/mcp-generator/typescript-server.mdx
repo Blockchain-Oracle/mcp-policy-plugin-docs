@@ -1,0 +1,291 @@
+---
+title: TypeScript Server
+---
+
+# TypeScript Server
+
+When generating with `--lang typescript`, the MCP Generator creates a complete TypeScript project ready for production use.
+
+## Generated Structure
+
+```
+my-token-mcp/
+├── src/
+│   ├── index.ts                 # MCP server entry point
+│   ├── lib/
+│   │   ├── utils.ts             # signTransaction()
+│   │   ├── passkey.ts           # signAndSendWithPasskey()
+│   │   ├── submit.ts            # submitTransaction()
+│   │   └── transaction.ts       # parseTransactionResult()
+│   ├── tools/
+│   │   └── my-token.ts          # Contract function handlers
+│   ├── schemas/
+│   │   └── my-token.ts          # Zod validation schemas
+│   └── bindings/
+│       ├── src/index.ts         # Official Stellar bindings
+│       └── package.json         # Bindings package
+├── deploy-wallet.ts             # PasskeyKit deployment script
+├── package.json
+├── tsconfig.json
+├── .env.example
+└── README.md
+```
+
+## Entry Point (src/index.ts)
+
+The main server file registers MCP tools and handles requests:
+
+```typescript
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { z } from 'zod';
+
+// Configuration from environment
+const CONTRACT_ID = process.env.CONTRACT_ID || '...';
+const RPC_URL = process.env.RPC_URL || '...';
+const NETWORK_PASSPHRASE = process.env.NETWORK_PASSPHRASE || '...';
+
+// Initialize MCP server
+const server = new McpServer({
+  name: 'soroban-contract-mcp',
+  version: '1.0.0',
+});
+
+// Register tools for each contract function
+server.tool(
+  'set-allowlist-wasm',
+  'Set WASM hash for Allowlist token type\n\n# Arguments\n* admin - Admin address\n* wasm_hash - WASM hash (hex)',
+  {
+    admin: z.string().length(56),
+    wasm_hash: z.string().length(64),
+  },
+  async (params) => {
+    const result = await tools.setAllowlistWasm(params, config);
+    return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+  }
+);
+
+// ... more tools registered
+
+// Start server
+const transport = new StdioServerTransport();
+await server.connect(transport);
+```
+
+## Tool Registration Pattern
+
+Each contract function becomes an MCP tool:
+
+| Contract Function | MCP Tool Name | Schema |
+|-------------------|---------------|--------|
+| `set_allowlist_wasm` | `set-allowlist-wasm` | Zod object |
+| `deploy_token` | `deploy-token` | Zod object |
+| `get_deployed_tokens` | `get-deployed-tokens` | (no params) |
+
+### Tool Handler Flow
+
+```
+MCP Request
+    ↓
+Validate params (Zod)
+    ↓
+Call tool function (tools/my-token.ts)
+    ↓
+Build transaction XDR (bindings)
+    ↓
+Return { xdr, simulationResult }
+```
+
+## Utility Libraries
+
+### src/lib/utils.ts - signTransaction()
+
+Signs transactions with sequence staleness handling:
+
+```typescript
+export async function signTransaction(
+  xdr: string,
+  secretKey: string,
+  signEnvelope: boolean = true
+): Promise<string> {
+  // 1. Parse original transaction
+  // 2. Sign auth entries
+  // 3. Fetch fresh account (current sequence)
+  // 4. Rebuild with fresh sequence
+  // 5. Re-simulate for fresh resources
+  // 6. Sign envelope
+  // 7. Return signed XDR
+}
+```
+
+### src/lib/passkey.ts - PasskeyKit Integration
+
+Full smart wallet signing:
+
+```typescript
+export async function signAndSendWithPasskey(
+  xdr: string,
+  walletContractId: string,
+  feePayerSecret: string
+): Promise<any> {
+  // Uses PasskeyKit for auth entry signing
+  // Separate fee payer for envelope signing
+  // Submits and polls for result
+}
+```
+
+### src/lib/submit.ts - Transaction Submission
+
+```typescript
+export async function submitTransaction(
+  signedXdr: string
+): Promise<SubmitResult> {
+  // Submit via RPC
+  // Poll for result (60 attempts, 500ms each = 30 seconds)
+  // Parse Soroban result meta
+}
+```
+
+### src/lib/transaction.ts - Result Parsing
+
+```typescript
+export function parseTransactionResult(
+  resultMetaXdr: string
+): any {
+  // Parse XDR
+  // Extract return value from Soroban meta
+  // Convert to native JS types
+}
+```
+
+## Type Conversions
+
+The generated code handles Stellar SDK type conversions:
+
+| MCP Input | Stellar SDK Type |
+|-----------|------------------|
+| Hex string (64 chars) | `Buffer` (for hash/salt) |
+| Numeric string | `BigInt` (for i128/u128) |
+| `null` | `undefined` (for Option) |
+| Address string (56 chars) | `string` (passed through) |
+
+Example in tool handler:
+
+```typescript
+// Convert hex string to Buffer for wasm_hash
+const wasmHash = Buffer.from(params.wasm_hash, 'hex');
+
+// Convert numeric string to BigInt for amount
+const amount = BigInt(params.amount);
+```
+
+## Zod Schemas
+
+Generated schemas provide runtime validation:
+
+```typescript
+// src/schemas/my-token.ts
+export const TokenTypeSchema = z.union([
+  z.object({ tag: z.literal('Allowlist') }),
+  z.object({ tag: z.literal('Blocklist') }),
+  z.object({ tag: z.literal('Capped') }),
+  z.object({ tag: z.literal('Pausable') }),
+  z.object({ tag: z.literal('Vault') }),
+]);
+
+export const TokenConfigSchema = z.object({
+  admin: z.string().length(56),
+  token_type: TokenTypeSchema,
+  decimals: z.number(),
+  initial_supply: z.string(),  // Handled as BigInt
+  // ...
+});
+```
+
+## Official Stellar Bindings
+
+Located in `src/bindings/`, generated by `stellar contract bindings typescript`:
+
+```typescript
+// src/bindings/src/index.ts
+export const networks = {
+  testnet: {
+    networkPassphrase: "Test SDF Network ; September 2015",
+    contractId: "CAHLJEQUCNTV7JPAPCMLCBIHOX7FFB57DUARJ6XGTW27FPCVKKY7JM2A",
+  }
+};
+
+export interface Client {
+  set_allowlist_wasm: (params) => Promise<AssembledTransaction<null>>
+  deploy_token: (params) => Promise<AssembledTransaction<TokenInfo>>
+  // ...
+}
+```
+
+## Package.json Scripts
+
+```json
+{
+  "scripts": {
+    "build": "pnpm run build:bindings && pnpm run build:server",
+    "build:bindings": "cd src/bindings && pnpm install && pnpm build",
+    "build:server": "esbuild src/index.ts --bundle --platform=node ...",
+    "deploy-passkey": "tsx deploy-wallet.ts",
+    "dev": "esbuild ... --watch",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit"
+  }
+}
+```
+
+## Dependencies
+
+```json
+{
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.8.0",
+    "@stellar/stellar-sdk": "^14.0.0",
+    "passkey-kit": "^0.10.19",
+    "passkey-kit-sdk": "^0.7.2",
+    "zod": "^3.23.0",
+    "dotenv": "^16.4.0"
+  }
+}
+```
+
+## Environment Configuration
+
+Create a `.env` file from the template:
+
+```bash
+cp .env.example .env
+```
+
+Required variables:
+
+```bash
+CONTRACT_ID=CAHLJEQUCNTV7JPAPCMLCBIHOX7FFB57DUARJ6XGTW27FPCVKKY7JM2A
+RPC_URL=https://soroban-testnet.stellar.org
+NETWORK_PASSPHRASE="Test SDF Network ; September 2015"
+```
+
+Optional (for PasskeyKit):
+
+```bash
+WALLET_WASM_HASH=<56-char-hex>
+WALLET_CONTRACT_ID=<contract-address>
+WALLET_SIGNER_SECRET=S...
+```
+
+## Running the Server
+
+```bash
+# Development (with watch)
+pnpm dev
+
+# Production
+pnpm build
+pnpm start
+```
+
+The server runs via stdio, suitable for Claude Desktop integration.

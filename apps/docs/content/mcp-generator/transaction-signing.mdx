@@ -1,0 +1,291 @@
+---
+title: Transaction Signing
+---
+
+# Transaction Signing
+
+Generated MCP servers include robust transaction signing utilities that handle common pitfalls like sequence number staleness.
+
+## The Problem: Sequence Staleness
+
+When building Soroban transactions, the sequence number can become stale between when the XDR is generated and when it's signed:
+
+```
+1. Build transaction (sequence = 100)
+2. User reviews transaction
+3. Another transaction is submitted (sequence now = 101)
+4. User signs (still has sequence = 100)
+5. Submission FAILS: "sequence number too old"
+```
+
+## The Solution: Rebuild with Fresh Sequence
+
+Generated servers use a "rebuild with fresh sequence" pattern:
+
+```
+1. Build transaction (get unsigned XDR)
+2. Sign auth entries (these are sequence-independent)
+3. Fetch current account (get fresh sequence)
+4. Rebuild transaction with fresh sequence
+5. Re-simulate for fresh resources
+6. Sign envelope
+7. Submit
+```
+
+## TypeScript: signTransaction()
+
+Located in `src/lib/utils.ts`:
+
+```typescript
+export async function signTransaction(
+  xdr: string,
+  secretKey: string,
+  signEnvelope: boolean = true
+): Promise<string> {
+  const keypair = Keypair.fromSecret(secretKey);
+  const server = new SorobanRpc.Server(rpcUrl);
+
+  // Step 1: Parse original transaction
+  const original = TransactionBuilder.fromXDR(xdr, networkPassphrase);
+  const operation = original.operations[0] as Operation.InvokeHostFunction;
+
+  // Step 2: Get current ledger for auth expiration
+  const ledgerInfo = await server.getLatestLedger();
+  const validUntilLedger = ledgerInfo.sequence + 100;
+
+  // Step 3: Sign auth entries (sequence-independent)
+  const signedAuth = [];
+  for (const auth of operation.auth || []) {
+    const signedEntry = await authorizeEntry(
+      auth,
+      keypair,
+      validUntilLedger,
+      networkPassphrase
+    );
+    signedAuth.push(signedEntry);
+  }
+
+  // Step 4: Fetch fresh account
+  const account = await server.getAccount(keypair.publicKey());
+
+  // Step 5: Rebuild with fresh sequence + signed auth
+  const rebuilt = new TransactionBuilder(account, {
+    fee: original.fee.toString(),
+    networkPassphrase,
+  })
+    .addOperation(
+      Operation.invokeHostFunction({
+        func: operation.func,
+        auth: signedAuth,
+      })
+    )
+    .setTimeout(30)
+    .build();
+
+  // Step 6: Simulate for fresh resources
+  const simResult = await server.simulateTransaction(rebuilt);
+  const assembled = SorobanRpc.assembleTransaction(rebuilt, simResult);
+
+  // Step 7: Sign envelope
+  if (signEnvelope) {
+    assembled.sign(keypair);
+  }
+
+  return assembled.toXDR();
+}
+```
+
+## Python: sign_transaction()
+
+Located in `src/lib/utils.py`:
+
+```python
+async def sign_transaction(
+    xdr: str,
+    secret_key: Optional[str] = None
+) -> str:
+    key = secret_key or os.getenv("SIGNER_SECRET")
+    keypair = Keypair.from_secret(key)
+    server = SorobanServer(rpc_url)
+
+    # Parse original transaction
+    original_tx = TransactionBuilder.from_xdr(xdr, network_passphrase)
+    operation = original_tx.transaction.operations[0]
+
+    # Fetch fresh account
+    source_account = server.load_account(keypair.public_key)
+
+    # Rebuild with fresh sequence
+    rebuilt_tx = (
+        TransactionBuilder(
+            source_account=source_account,
+            network_passphrase=network_passphrase,
+            base_fee=int(original_tx.transaction.fee)
+        )
+        .append_operation(
+            InvokeHostFunction(
+                host_function=operation.host_function,
+                auth=None  # Let simulation regenerate
+            )
+        )
+        .set_timeout(30)
+        .build()
+    )
+
+    # Simulate for fresh resources
+    sim_response = server.simulate_transaction(rebuilt_tx)
+    final_tx = server.prepare_transaction(rebuilt_tx, sim_response)
+
+    # Sign envelope
+    final_tx.sign(keypair)
+
+    return final_tx.to_xdr()
+```
+
+## Transaction Submission
+
+### TypeScript: submitTransaction()
+
+```typescript
+export async function submitTransaction(
+  signedXdr: string
+): Promise<SubmitResult> {
+  const tx = TransactionBuilder.fromXDR(signedXdr, networkPassphrase);
+
+  // Submit
+  const response = await server.sendTransaction(tx);
+
+  if (response.status !== 'PENDING') {
+    throw new Error(`Submission failed: ${response.errorResult}`);
+  }
+
+  // Poll for result
+  for (let i = 0; i < 60; i++) {
+    await sleep(500);  // 500ms between checks
+
+    const result = await server.getTransaction(response.hash);
+
+    if (result.status === 'SUCCESS') {
+      return {
+        hash: response.hash,
+        status: 'SUCCESS',
+        parsedResult: parseTransactionResult(result.resultMetaXdr),
+        resultMetaXdr: result.resultMetaXdr,
+      };
+    }
+
+    if (result.status === 'FAILED') {
+      return {
+        hash: response.hash,
+        status: 'FAILED',
+        parsedResult: result.resultXdr,
+      };
+    }
+  }
+
+  return { hash: response.hash, status: 'TIMEOUT' };
+}
+```
+
+### Python: submit_transaction()
+
+```python
+async def submit_transaction(signed_xdr: str) -> Dict[str, Any]:
+    envelope = TransactionEnvelope.from_xdr(signed_xdr, network_passphrase)
+    response = server.send_transaction(envelope)
+    tx_hash = response.hash
+
+    # Poll for result (120 attempts, 1s each = 2 minutes)
+    for attempt in range(120):
+        tx_response = server.get_transaction(tx_hash)
+
+        if tx_response.status == "SUCCESS":
+            return {"hash": tx_hash, "status": "SUCCESS"}
+
+        if tx_response.status == "FAILED":
+            return {"hash": tx_hash, "status": "FAILED"}
+
+        await asyncio.sleep(1.0)
+
+    return {"hash": tx_hash, "status": "TIMEOUT"}
+```
+
+## Timeout Differences
+
+| Language | Polling Interval | Max Attempts | Total Timeout |
+|----------|-----------------|--------------|---------------|
+| TypeScript | 500ms | 60 | 30 seconds |
+| Python | 1000ms | 120 | 2 minutes |
+
+## Result Parsing
+
+### TypeScript: parseTransactionResult()
+
+```typescript
+export function parseTransactionResult(resultMetaXdr: string): any {
+  const meta = xdr.TransactionMeta.fromXDR(resultMetaXdr, 'base64');
+  const v3 = meta.v3();
+  const sorobanMeta = v3.sorobanMeta();
+
+  if (!sorobanMeta) return null;
+
+  const returnValue = sorobanMeta.returnValue();
+  return scValToNative(returnValue);
+}
+```
+
+This extracts the actual return value from the Soroban result metadata.
+
+## MCP Tool: sign-and-submit
+
+The generated server includes a universal signing tool:
+
+```typescript
+server.tool(
+  'sign-and-submit',
+  'Sign and submit a transaction XDR',
+  {
+    xdr: z.string(),
+    secretKey: z.string().optional(),
+    walletContractId: z.string().optional(),  // For passkey signing
+  },
+  async (params) => {
+    if (params.walletContractId) {
+      // Use PasskeyKit signing
+      return await signAndSendWithPasskey(
+        params.xdr,
+        params.walletContractId,
+        params.secretKey
+      );
+    } else {
+      // Use regular keypair signing
+      const signedXdr = await signTransaction(params.xdr, params.secretKey);
+      return await submitTransaction(signedXdr);
+    }
+  }
+);
+```
+
+## Workflow Example
+
+```
+Claude: "Deploy a new Capped token"
+
+1. Claude calls deploy-token tool
+   → Returns unsigned XDR
+
+2. Claude calls sign-and-submit with XDR + secret key
+   → signTransaction() rebuilds with fresh sequence
+   → Signs and submits
+   → Polls for result
+
+3. Result returned:
+   {
+     "hash": "abc123...",
+     "status": "SUCCESS",
+     "parsedResult": {
+       "address": "CD3H...",
+       "tokenType": "Capped"
+     }
+   }
+```

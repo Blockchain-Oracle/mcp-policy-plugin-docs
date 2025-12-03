@@ -1,0 +1,243 @@
+---
+title: Claude Desktop Setup
+---
+
+# Claude Desktop Setup
+
+Configure Claude Desktop to use your generated MCP server, enabling AI-assisted smart contract interaction.
+
+## Configuration File
+
+Claude Desktop reads MCP server configuration from:
+
+| Platform | Path |
+|----------|------|
+| **macOS** | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| **Windows** | `%APPDATA%\Claude\claude_desktop_config.json` |
+| **Linux** | `~/.config/claude/claude_desktop_config.json` |
+
+## TypeScript Server Configuration
+
+```json
+{
+  "mcpServers": {
+    "my-token": {
+      "command": "node",
+      "args": ["/absolute/path/to/my-token-mcp/dist/index.js"],
+      "env": {
+        "CONTRACT_ID": "CAHLJEQUCNTV7JPAPCMLCBIHOX7FFB57DUARJ6XGTW27FPCVKKY7JM2A",
+        "RPC_URL": "https://soroban-testnet.stellar.org",
+        "NETWORK_PASSPHRASE": "Test SDF Network ; September 2015"
+      }
+    }
+  }
+}
+```
+
+> [!WARNING]
+> Use **absolute paths** for the `args` field. Relative paths won't work.
+
+## Python Server Configuration
+
+```json
+{
+  "mcpServers": {
+    "my-token": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/absolute/path/to/mcp-server",
+        "run",
+        "server.py"
+      ],
+      "env": {
+        "CONTRACT_ID": "CAHLJEQUCNTV7JPAPCMLCBIHOX7FFB57DUARJ6XGTW27FPCVKKY7JM2A",
+        "RPC_URL": "https://soroban-testnet.stellar.org",
+        "NETWORK_PASSPHRASE": "Test SDF Network ; September 2015"
+      }
+    }
+  }
+}
+```
+
+## With PasskeyKit (TypeScript Only)
+
+```json
+{
+  "mcpServers": {
+    "my-token": {
+      "command": "node",
+      "args": ["/absolute/path/to/my-token-mcp/dist/index.js"],
+      "env": {
+        "CONTRACT_ID": "CAHLJEQUCNTV7JPAPCMLCBIHOX7FFB57DUARJ6XGTW27FPCVKKY7JM2A",
+        "RPC_URL": "https://soroban-testnet.stellar.org",
+        "NETWORK_PASSPHRASE": "Test SDF Network ; September 2015",
+        "WALLET_WASM_HASH": "abc123def456...",
+        "WALLET_CONTRACT_ID": "CDXYZ789...",
+        "WALLET_SIGNER_SECRET": "SDEF..."
+      }
+    }
+  }
+}
+```
+
+## With Signing Secret
+
+To enable automatic signing without prompting:
+
+```json
+{
+  "mcpServers": {
+    "my-token": {
+      "command": "node",
+      "args": ["/absolute/path/to/my-token-mcp/dist/index.js"],
+      "env": {
+        "CONTRACT_ID": "CAHLJEQUCNTV7JPAPCMLCBIHOX7FFB57DUARJ6XGTW27FPCVKKY7JM2A",
+        "RPC_URL": "https://soroban-testnet.stellar.org",
+        "NETWORK_PASSPHRASE": "Test SDF Network ; September 2015",
+        "SIGNER_SECRET": "SXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+      }
+    }
+  }
+}
+```
+
+> [!WARNING]
+> Only use `SIGNER_SECRET` on testnet or with keys you're comfortable exposing. For production, use PasskeyKit or prompt for secrets in conversation.
+
+## Multiple Servers
+
+You can configure multiple MCP servers:
+
+```json
+{
+  "mcpServers": {
+    "token-factory": {
+      "command": "node",
+      "args": ["/path/to/token-factory-mcp/dist/index.js"],
+      "env": {
+        "CONTRACT_ID": "CABC...",
+        "RPC_URL": "https://soroban-testnet.stellar.org",
+        "NETWORK_PASSPHRASE": "Test SDF Network ; September 2015"
+      }
+    },
+    "nft-marketplace": {
+      "command": "node",
+      "args": ["/path/to/nft-mcp/dist/index.js"],
+      "env": {
+        "CONTRACT_ID": "CDEF...",
+        "RPC_URL": "https://soroban-testnet.stellar.org",
+        "NETWORK_PASSPHRASE": "Test SDF Network ; September 2015"
+      }
+    }
+  }
+}
+```
+
+## Restart Claude Desktop
+
+After modifying the configuration:
+
+1. Fully quit Claude Desktop (Cmd+Q on macOS)
+2. Reopen Claude Desktop
+3. The MCP servers will be loaded
+
+## Verify Server Connection
+
+In Claude Desktop, you should see your MCP tools available. Try asking:
+
+```
+What tools do you have from my-token?
+```
+
+Claude should list the available contract functions as tools.
+
+## Example Conversations
+
+### Querying Contract State
+
+```
+User: What tokens have been deployed from the factory?
+
+Claude: I'll check the deployed tokens using the get-deployed-tokens tool.
+
+[Calls get-deployed-tokens]
+
+Here are the deployed tokens:
+1. AllowlistToken (CABC...)
+2. CappedToken (CDEF...)
+3. VaultToken (CGHI...)
+```
+
+### Deploying a Token
+
+```
+User: Deploy a new Capped token with 1 million supply
+
+Claude: I'll deploy a new Capped token. First, let me build the transaction.
+
+[Calls deploy-token with Capped type and 1000000 supply]
+
+Transaction built. Now I'll sign and submit it.
+
+[Calls sign-and-submit]
+
+Token deployed successfully:
+- Address: CXYZ...
+- Type: Capped
+- Supply: 1,000,000
+- Transaction: abc123...
+```
+
+### Using Passkey Signing
+
+```
+User: Deploy a token using my smart wallet CDWALLET123
+
+Claude: I'll deploy using your smart wallet for signing.
+
+[Calls deploy-token]
+[Calls sign-and-submit with walletContractId: CDWALLET123]
+
+Token deployed with smart wallet signing:
+- Address: CNEW...
+- Signed by: CDWALLET123
+```
+
+## Troubleshooting
+
+### "Server not found"
+
+- Check the path is absolute
+- Verify the file exists: `ls /absolute/path/to/dist/index.js`
+- Make sure you built the project: `pnpm build`
+
+### "Permission denied"
+
+Make the script executable:
+```bash
+chmod +x /path/to/dist/index.js
+```
+
+### "Module not found"
+
+Install dependencies:
+```bash
+cd /path/to/my-token-mcp
+pnpm install
+```
+
+### "Environment variables not set"
+
+Check your config has the `env` section properly formatted as JSON.
+
+### Logs
+
+Find Claude Desktop logs:
+
+| Platform | Path |
+|----------|------|
+| macOS | `~/Library/Logs/Claude/` |
+| Windows | `%APPDATA%\Claude\logs\` |
+
+Look for MCP-related errors in the logs.

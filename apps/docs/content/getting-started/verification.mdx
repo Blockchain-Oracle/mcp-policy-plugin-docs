@@ -1,0 +1,195 @@
+---
+title: Verification
+---
+
+import { Cards } from 'nextra/components'
+
+# Verification
+
+Verify that the Stellar MCP Plugins are installed correctly and working.
+
+## Check Plugin Registration
+
+First, verify both plugins are registered with the Stellar CLI:
+
+```bash
+stellar plugins --list
+```
+
+Expected output:
+
+```
+Installed Plugins:
+    mcp
+    policy
+```
+
+## Test MCP Generator
+
+### View Help
+
+```bash
+stellar mcp --help
+```
+
+Expected output:
+
+```
+Generate MCP servers from Soroban contracts
+
+Usage: stellar mcp <COMMAND>
+
+Commands:
+  generate  Generate an MCP server from a deployed contract
+  validate  Validate a generated MCP server
+  help      Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help  Print help
+```
+
+### View Generate Options
+
+```bash
+stellar mcp generate --help
+```
+
+This shows all available flags:
+
+```
+Generate an MCP server from a deployed contract
+
+Usage: stellar mcp generate [OPTIONS] --contract-id <CONTRACT_ID>
+
+Options:
+  -c, --contract-id <CONTRACT_ID>  Contract ID (starts with 'C', 56 characters)
+  -l, --lang <LANG>                Language: typescript or python [default: typescript]
+  -n, --network <NETWORK>          Network: testnet, mainnet, futurenet, local [default: testnet]
+  -o, --output <OUTPUT>            Output directory [default: ./mcp-server]
+      --name <NAME>                Contract name for tool naming
+      --server-name <SERVER_NAME>  MCP server name [default: soroban-contract]
+      --rpc-url <RPC_URL>          Custom RPC URL
+      --network-passphrase <PASSPHRASE>  Network passphrase
+      --force                      Overwrite existing directory
+  -v, --verbose                    Enable verbose output
+  -h, --help                       Print help
+```
+
+### Try the Wizard (No Flags)
+
+Run without any flags to trigger the interactive wizard:
+
+```bash
+stellar mcp generate
+```
+
+You should see a colored interactive prompt asking for configuration.
+
+> [!TIP]
+> Press Ctrl+C to exit the wizard without generating anything.
+
+## Test Policy CLI
+
+### View Help
+
+```bash
+stellar policy --help
+```
+
+Expected output:
+
+```
+Generate policy smart contracts for Stellar smart wallets
+
+Usage: stellar policy <COMMAND>
+
+Commands:
+  generate  Generate a policy contract via interactive wizard
+  help      Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help  Print help
+```
+
+### Try the Wizard
+
+```bash
+stellar policy generate
+```
+
+You should see a beautiful interactive wizard with:
+- Colored output (cyan headers, green confirmations)
+- Progress indicator (Step 1/10)
+- Back navigation option
+
+> [!TIP]
+> Press Ctrl+C to exit the wizard without generating anything.
+
+## Common Issues
+
+### "stellar mcp: command not found"
+
+The plugin may not be registered. Try reinstalling:
+
+```bash
+cd stellar-mcp-generator
+cargo install --path . --force
+```
+
+### "No color output in wizard"
+
+Your terminal may not support ANSI colors. Try:
+- Using a modern terminal (iTerm2, Windows Terminal, etc.)
+- Setting `TERM=xterm-256color`
+
+### "Plugin crashes immediately"
+
+Check that your Stellar CLI version is compatible:
+
+```bash
+stellar --version
+# Should be 23.0 or higher
+```
+
+## Quick Test: Generate a TypeScript MCP Server
+
+Let's generate a real MCP server to verify everything works:
+
+```bash
+# Create a test directory
+mkdir test-mcp && cd test-mcp
+
+# Generate from a known testnet contract
+stellar mcp generate \
+  --contract-id CAHLJEQUCNTV7JPAPCMLCBIHOX7FFB57DUARJ6XGTW27FPCVKKY7JM2A \
+  --network testnet \
+  --output my-test-mcp
+
+# Check the output
+ls my-test-mcp
+```
+
+You should see a complete TypeScript MCP server project:
+
+```
+my-test-mcp/
+├── src/
+│   ├── index.ts
+│   ├── lib/
+│   ├── tools/
+│   ├── schemas/
+│   └── bindings/
+├── package.json
+├── tsconfig.json
+├── .env.example
+└── README.md
+```
+
+## Next Steps
+
+Your installation is verified! Choose your path:
+
+<Cards>
+  <Cards.Card title="MCP Generator" href="/mcp-generator" />
+  <Cards.Card title="Policy CLI" href="/policy-cli" />
+</Cards>

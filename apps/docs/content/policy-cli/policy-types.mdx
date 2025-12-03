@@ -1,0 +1,261 @@
+---
+title: Policy Types
+---
+
+# Policy Types
+
+The Policy CLI supports five types of policy rules, divided into stateless and stateful categories.
+
+## Stateless Policies
+
+Stateless policies are hardcoded at compile time and don't require storage. They're more gas-efficient.
+
+### Function Whitelist
+
+Restricts which contract functions can be called.
+
+**Use Cases:**
+- Only allow `transfer` and `approve` on a token
+- Prevent admin functions from being called
+- Limit a wallet to read-only operations
+
+**Configuration:**
+
+```
+Function whitelist: transfer, approve, balance
+```
+
+**Generated Code:**
+
+```rust
+// Check function name is allowed
+let fn_allowed = fn_name == symbol_short!("transfer")
+    || fn_name == symbol_short!("approve")
+    || fn_name == symbol_short!("balance");
+
+if !fn_allowed {
+    panic_with_error!(&env, Error::NotAllowed);
+}
+```
+
+### Contract Whitelist
+
+Restricts which contracts can be interacted with.
+
+**Use Cases:**
+- Only allow interaction with specific DEX contracts
+- Limit to approved token contracts
+- Prevent interaction with unknown contracts
+
+**Configuration:**
+
+```
+Contract whitelist: CABC...56chars..., CDEF...56chars...
+```
+
+**Generated Code:**
+
+```rust
+// Check contract is allowed
+let allowed_contract_0 = Address::from_str(&env,
+    "CABC123...56chars...");
+let allowed_contract_1 = Address::from_str(&env,
+    "CDEF456...56chars...");
+
+let contract_allowed = contract == allowed_contract_0
+    || contract == allowed_contract_1;
+
+if !contract_allowed {
+    panic_with_error!(&env, Error::NotAllowed);
+}
+```
+
+### Recipient Whitelist
+
+Restricts which addresses can receive funds.
+
+**Use Cases:**
+- Only allow transfers to treasury addresses
+- Limit withdrawals to approved exchanges
+- Prevent transfers to unknown addresses
+
+**Configuration:**
+
+```
+Recipient whitelist: GABC...56chars..., GDEF...56chars...
+```
+
+**Generated Code:**
+
+```rust
+// Extract recipient from args (typically arg[1])
+if let Some(recipient_val) = args.get(1) {
+    if let Ok(recipient) = Address::try_from_val(&env, &recipient_val) {
+        let allowed_recipient_0 = Address::from_str(&env,
+            "GABC123...56chars...");
+
+        let recipient_allowed = recipient == allowed_recipient_0;
+
+        if !recipient_allowed {
+            panic_with_error!(&env, Error::NotAllowed);
+        }
+    }
+}
+```
+
+## Stateful Policies
+
+Stateful policies use contract storage and can be configured dynamically. They require admin management for best results.
+
+### Amount Cap
+
+Limits the maximum amount per transaction.
+
+**Use Cases:**
+- Daily spending limits
+- Per-transaction caps
+- Token-specific limits
+
+**Configuration:**
+
+```
+Amount cap: 10000000 (in stroops)
+Token contract: (optional, defaults to native XLM)
+```
+
+**Generated Code:**
+
+```rust
+// Extract amount from args (typically arg[2])
+if let Some(amount_val) = args.get(2) {
+    if let Ok(amount) = i128::try_from_val(&env, &amount_val) {
+        // Get signer's configured limit
+        let signer_bytes = match &_signer {
+            SignerKey::Ed25519(key) => key.clone(),
+            _ => panic_with_error!(&env, Error::NotAllowed),
+        };
+
+        // Read limit from storage (default: 10000000)
+        let max_amount: i128 = env.storage().persistent()
+            .get(&StorageKey::Limits(signer_bytes))
+            .unwrap_or(10000000);
+
+        if amount > max_amount {
+            panic_with_error!(&env, Error::TooMuch);
+        }
+    }
+}
+```
+
+**Error:** `TooMuch` (error code 6)
+
+### Rate Limiting
+
+Enforces minimum time between transactions.
+
+**Use Cases:**
+- Prevent rapid succession of transactions
+- Implement cooldown periods
+- Anti-spam protection
+
+**Configuration:**
+
+```
+Min ledgers between transactions: 100
+```
+
+> [!TIP]
+> Each ledger is approximately 5 seconds.
+> - 100 ledgers ≈ 8 minutes
+> - 720 ledgers ≈ 1 hour
+> - 17,280 ledgers ≈ 1 day
+
+**Generated Code:**
+
+```rust
+// Get signer's configured rate limit
+let signer_bytes = match &_signer {
+    SignerKey::Ed25519(key) => key.clone(),
+    _ => panic_with_error!(&env, Error::NotAllowed),
+};
+
+// Read min ledgers from storage (default: 200)
+let min_ledgers: u32 = env.storage().persistent()
+    .get(&StorageKey::MinLedgers(signer_bytes.clone()))
+    .unwrap_or(200);
+
+// Check time since last transaction
+let current_ledger = env.ledger().sequence();
+if let Some(previous_ledger) = env.storage().persistent()
+    .get::<StorageKey, u32>(&StorageKey::Previous(signer_bytes.clone()))
+{
+    if current_ledger < previous_ledger + min_ledgers {
+        panic_with_error!(&env, Error::TooSoon);
+    }
+}
+
+// Update last transaction ledger
+env.storage().persistent()
+    .set(&StorageKey::Previous(signer_bytes), &current_ledger);
+```
+
+**Error:** `TooSoon` (error code 5)
+
+## Storage Keys
+
+Stateful policies use these storage keys:
+
+```rust
+#[contracttype]
+pub enum StorageKey {
+    Admin,                      // Admin address
+    Previous(BytesN<32>),       // Last txn ledger (per signer)
+    Limits(BytesN<32>),         // Max amount (per signer)
+    MinLedgers(BytesN<32>),     // Min ledgers (per signer)
+}
+```
+
+## Error Codes
+
+| Code | Name | Meaning |
+|------|------|---------|
+| 1 | `AlreadyInitialized` | Contract already has an admin |
+| 2 | `NotInitialized` | Contract needs initialization |
+| 4 | `NotAllowed` | Policy validation failed |
+| 5 | `TooSoon` | Rate limit violated |
+| 6 | `TooMuch` | Amount cap exceeded |
+
+## Combining Policies
+
+You can enable multiple policy types together:
+
+```
+Function whitelist: transfer, approve
+Recipient whitelist: GABC..., GDEF...
+Amount cap: 10000000
+Rate limiting: 100
+```
+
+All enabled policies are checked. The transaction fails if **any** policy rejects it.
+
+## Policy Validation Flow
+
+```
+Transaction Request
+      ↓
+Extract Context (contract, fn_name, args)
+      ↓
+Check Function Whitelist → NotAllowed
+      ↓
+Check Contract Whitelist → NotAllowed
+      ↓
+Check Recipient (arg[1]) → NotAllowed
+      ↓
+Check Amount (arg[2]) → TooMuch
+      ↓
+Check Rate Limit → TooSoon
+      ↓
+Update Previous Ledger
+      ↓
+✅ Transaction Allowed
+```

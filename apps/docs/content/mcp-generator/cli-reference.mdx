@@ -1,0 +1,173 @@
+---
+title: CLI Reference
+---
+
+# CLI Reference
+
+Complete reference for the `stellar mcp` command and its subcommands.
+
+## Commands
+
+### stellar mcp generate
+
+Generate an MCP server from a deployed Soroban contract.
+
+```bash
+stellar mcp generate [OPTIONS] --contract-id <CONTRACT_ID>
+```
+
+#### Required Options
+
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--contract-id` | `-c` | Contract ID to generate from (56 characters, starts with 'C') |
+
+#### Optional Options
+
+| Option | Short | Default | Description |
+|--------|-------|---------|-------------|
+| `--lang` | `-l` | `typescript` | Target language: `typescript` or `python` |
+| `--network` | `-n` | `testnet` | Network: `testnet`, `mainnet`, `futurenet`, `local` |
+| `--output` | `-o` | `./mcp-server` | Output directory |
+| `--name` | | Auto-detected | Contract name (used for tool naming) |
+| `--server-name` | | `soroban-contract` | MCP server name |
+| `--rpc-url` | | Network default | Custom RPC URL |
+| `--network-passphrase` | | Network default | Network passphrase |
+| `--force` | | `false` | Overwrite existing output directory |
+| `--verbose` | `-v` | `false` | Enable verbose debug output |
+
+#### Network Defaults
+
+| Network | RPC URL | Passphrase |
+|---------|---------|------------|
+| `testnet` | `https://soroban-testnet.stellar.org` | `Test SDF Network ; September 2015` |
+| `mainnet` | `https://soroban.stellar.org` | `Public Global Stellar Network ; September 2015` |
+| `futurenet` | `https://rpc-futurenet.stellar.org` | `Test SDF Future Network ; October 2022` |
+| `local` | `http://localhost:8000/soroban/rpc` | `Standalone Network ; February 2017` |
+
+### stellar mcp validate
+
+Validate a generated MCP server project.
+
+```bash
+stellar mcp validate <PATH> [OPTIONS]
+```
+
+#### Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `PATH` | Path to the generated MCP server directory |
+
+#### Options
+
+| Option | Description |
+|--------|-------------|
+| `--typecheck` | Run TypeScript type checking (`tsc --noEmit`) |
+| `--check-deps` | Verify all dependencies are installed |
+| `--build` | Attempt to build the project |
+
+## Examples
+
+### Basic TypeScript Generation
+
+```bash
+stellar mcp generate \
+  --contract-id CAHLJEQUCNTV7JPAPCMLCBIHOX7FFB57DUARJ6XGTW27FPCVKKY7JM2A \
+  --network testnet \
+  --output my-token-mcp
+```
+
+### Python Server
+
+```bash
+stellar mcp generate \
+  --contract-id CAHLJEQUCNTV7JPAPCMLCBIHOX7FFB57DUARJ6XGTW27FPCVKKY7JM2A \
+  --lang python \
+  --output my-token-mcp
+```
+
+### Custom Name and Server Name
+
+```bash
+stellar mcp generate \
+  --contract-id CAHLJEQUCNTV7JPAPCMLCBIHOX7FFB57DUARJ6XGTW27FPCVKKY7JM2A \
+  --name token-factory \
+  --server-name stellar-token-factory \
+  --output token-factory-mcp
+```
+
+### Mainnet with Custom RPC
+
+```bash
+stellar mcp generate \
+  --contract-id CABC... \
+  --rpc-url https://my-rpc.example.com \
+  --network-passphrase "Public Global Stellar Network ; September 2015" \
+  --output prod-mcp
+```
+
+### Force Overwrite
+
+```bash
+stellar mcp generate \
+  --contract-id CABC... \
+  --output my-mcp \
+  --force
+```
+
+### Validate Generated Project
+
+```bash
+stellar mcp validate ./my-token-mcp --typecheck --build
+```
+
+## Wizard Mode
+
+Running `stellar mcp generate` with **no flags** triggers the interactive wizard:
+
+```bash
+stellar mcp generate
+```
+
+The wizard prompts for each configuration option with validation and defaults.
+
+See [Interactive Wizard](/mcp-generator/wizard) for details.
+
+## Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| `0` | Success |
+| `1` | General error |
+| `2` | Invalid arguments |
+| `3` | Contract not found |
+| `4` | RPC connection failed |
+| `5` | Code generation failed |
+
+## Environment Variables
+
+The generator respects these environment variables:
+
+| Variable | Description |
+|----------|-------------|
+| `STELLAR_RPC_URL` | Default RPC URL if not specified |
+| `STELLAR_NETWORK_PASSPHRASE` | Default network passphrase |
+| `STELLAR_NETWORK` | Default network name |
+
+## Output
+
+On success, the generator outputs:
+
+```
+✨ MCP server generated successfully!
+
+📁 Output: ./my-token-mcp
+
+Next steps:
+  cd my-token-mcp
+  pnpm install
+  cp .env.example .env
+  pnpm build
+  pnpm start
+```

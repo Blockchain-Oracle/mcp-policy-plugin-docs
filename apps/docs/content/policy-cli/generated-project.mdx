@@ -1,0 +1,312 @@
+---
+title: Generated Project
+---
+
+# Generated Project
+
+When you run `stellar policy generate`, a complete Rust project is created with everything needed for development, testing, and deployment.
+
+## Project Structure
+
+```
+my-policy/
+├── contracts/
+│   ├── Cargo.toml              # Workspace manifest
+│   ├── rust-toolchain.toml     # Rust version (stable)
+│   └── my-policy/
+│       ├── Cargo.toml          # Contract dependencies
+│       └── src/
+│           ├── lib.rs          # Policy contract code
+│           ├── types.rs        # Storage key definitions
+│           └── test.rs         # Unit tests
+│
+├── my-policy-sdk/              # (After make bindings)
+│   ├── src/index.ts
+│   ├── package.json
+│   └── tsconfig.json
+│
+├── examples/
+│   └── typescript-integration.ts
+│
+├── scripts/
+│   └── fix-bindings.sh
+│
+├── Makefile
+├── package.json
+├── tsconfig.json
+├── .env.example
+└── README.md
+```
+
+## Contract Files
+
+### lib.rs - Policy Contract
+
+The main contract file contains:
+
+```rust
+#![no_std]
+use soroban_sdk::{contract, contractimpl, contracttype, contracterror,
+    panic_with_error, symbol_short, Address, BytesN, Env, Vec};
+use smart_wallet_interface::{Context, ContractContext, SignerKey};
+
+mod types;
+use types::StorageKey;
+
+// Re-export SignerKey with export = true (required for CLI)
+#[contracttype(export = true)]
+#[derive(Clone, Debug, PartialEq)]
+pub enum SignerKey {
+    Policy(Address),
+    Ed25519(BytesN<32>),
+    Secp256r1(Bytes),
+}
+
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum Error {
+    AlreadyInitialized = 1,
+    NotInitialized = 2,
+    NotAllowed = 4,
+    TooSoon = 5,
+    TooMuch = 6,
+}
+
+#[contract]
+pub struct PolicyContract;
+
+#[contractimpl]
+impl PolicyContract {
+    // Initialize with admin (if admin mode enabled)
+    pub fn init(env: Env, admin: Address) {
+        if env.storage().persistent().has(&StorageKey::Admin) {
+            panic_with_error!(&env, Error::AlreadyInitialized);
+        }
+        env.storage().persistent().set(&StorageKey::Admin, &admin);
+    }
+
+    // Add wallet with limits (if admin mode enabled)
+    pub fn add_wallet(
+        env: Env,
+        user: BytesN<32>,
+        max_amount: i128,
+        min_ledgers: u32,
+    ) {
+        let admin: Address = env.storage().persistent()
+            .get(&StorageKey::Admin)
+            .unwrap_or_else(|| panic_with_error!(&env, Error::NotInitialized));
+        admin.require_auth();
+
+        env.storage().persistent()
+            .set(&StorageKey::Limits(user.clone()), &max_amount);
+        env.storage().persistent()
+            .set(&StorageKey::MinLedgers(user), &min_ledgers);
+    }
+
+    // Policy validation function
+    pub fn policy__(
+        env: Env,
+        _source: Address,
+        _signer: SignerKey,
+        contexts: Vec<Context>
+    ) {
+        // Policy logic here...
+    }
+}
+```
+
+### types.rs - Storage Keys
+
+For policies with admin mode:
+
+```rust
+use soroban_sdk::{contracttype, BytesN};
+
+#[contracttype]
+pub enum StorageKey {
+    Admin,
+    Previous(BytesN<32>),    // Rate limiting
+    Limits(BytesN<32>),      // Amount caps
+    MinLedgers(BytesN<32>),  // Rate limits
+}
+```
+
+### test.rs - Unit Tests
+
+Comprehensive tests for all policy features:
+
+```rust
+#![cfg(test)]
+use super::*;
+use soroban_sdk::{testutils::*, Env};
+
+#[test]
+fn test_init_success() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register_contract(None, PolicyContract);
+    let client = PolicyContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.init(&admin);
+
+    // Verify initialization succeeded
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #1)")]
+fn test_already_initialized() {
+    // Test double initialization fails
+}
+
+#[test]
+fn test_amount_cap_allows_within_limit() {
+    // Test amounts under cap succeed
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #6)")]
+fn test_amount_cap_blocks_over_limit() {
+    // Test amounts over cap fail with TooMuch
+}
+
+#[test]
+fn test_rate_limiting_allows_first_transaction() {
+    // Test first transaction succeeds
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #5)")]
+fn test_rate_limiting_blocks_too_soon() {
+    // Test rapid transactions fail with TooSoon
+}
+
+// ... 13+ tests total
+```
+
+## Configuration Files
+
+### Cargo.toml (Workspace)
+
+```toml
+[workspace]
+resolver = "2"
+members = ["my-policy"]
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+```
+
+### Cargo.toml (Contract)
+
+```toml
+[package]
+name = "my-policy"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+soroban-sdk = "23"
+smart-wallet-interface = { git = "https://github.com/kalepail/passkey-kit", branch = "next" }
+
+[dev-dependencies]
+soroban-sdk = { version = "23", features = ["testutils"] }
+```
+
+### rust-toolchain.toml
+
+```toml
+[toolchain]
+channel = "stable"
+targets = ["wasm32-unknown-unknown"]
+```
+
+## Build Outputs
+
+After `make build`:
+
+```
+contracts/target/wasm32-unknown-unknown/release/
+└── my_policy.wasm    # Compiled contract
+```
+
+## TypeScript SDK
+
+After `make bindings`:
+
+```
+my-policy-sdk/
+├── src/
+│   └── index.ts      # Generated client
+├── dist/
+│   └── index.d.ts    # Type definitions
+├── package.json
+└── tsconfig.json
+```
+
+## Environment Template
+
+`.env.example`:
+
+```bash
+# Contract Configuration
+POLICY_CONTRACT_ID=
+ADMIN_SECRET=
+
+# Network
+RPC_URL=https://soroban-testnet.stellar.org
+NETWORK_PASSPHRASE="Test SDF Network ; September 2015"
+```
+
+## README.md
+
+Generated README includes:
+
+- Policy description
+- Enabled features
+- Build instructions
+- Test instructions
+- Deployment guide
+- TypeScript integration example
+
+## Example Integration
+
+`examples/typescript-integration.ts`:
+
+```typescript
+import { Client } from '../my-policy-sdk/dist/index.js';
+import { Networks, Keypair } from '@stellar/stellar-sdk';
+
+const POLICY_CONTRACT_ID = process.env.POLICY_CONTRACT_ID!;
+
+async function main() {
+    const client = new Client({
+        contractId: POLICY_CONTRACT_ID,
+        networkPassphrase: Networks.TESTNET,
+        rpcUrl: 'https://soroban-testnet.stellar.org',
+    });
+
+    // Initialize policy with admin
+    const adminKeypair = Keypair.fromSecret(process.env.ADMIN_SECRET!);
+    await client.init({ admin: adminKeypair.publicKey() });
+
+    // Add a wallet with limits
+    const userPublicKey = '...'; // 32-byte hex
+    await client.add_wallet({
+        user: Buffer.from(userPublicKey, 'hex'),
+        max_amount: 10000000n,
+        min_ledgers: 100,
+    });
+
+    console.log('Policy configured!');
+}
+
+main();
+```
