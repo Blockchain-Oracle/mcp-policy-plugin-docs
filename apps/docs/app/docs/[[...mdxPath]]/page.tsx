@@ -1,6 +1,6 @@
 import { generateStaticParamsFor, importPage } from 'nextra/pages'
 import { notFound } from 'next/navigation'
-import { useMDXComponents } from '../../mdx-components'
+import { useMDXComponents } from '../../../mdx-components'
 import type { FC, ReactNode } from 'react'
 
 export const generateStaticParams = generateStaticParamsFor('mdxPath')
