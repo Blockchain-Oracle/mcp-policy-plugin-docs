@@ -42,18 +42,24 @@ export default function Home() {
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '20px',
-                marginBottom: '3rem',
+                gap: '18px',
+                margin: '0 auto 2.5rem auto',
+                padding: '0.75rem 1.5rem',
                 textDecoration: 'none',
-                transition: 'all 0.3s ease'
+                transition: 'all 0.3s ease',
+                borderRadius: '12px',
+                border: '1px solid hsl(var(--border))',
+                height: '56px',
+                minHeight: 0,
               }}
             >
               <span style={{ fontSize: '1.125rem', fontWeight: 700, color: 'hsl(var(--foreground))' }}>Built on</span>
               <Image
                 src="/stellar-logo.svg"
                 alt="Stellar"
-                width={128}
-                height={128}
+                width={48}
+                height={48}
+                style={{ width: 48, height: 48 }}
               />
             </Link>
             <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
