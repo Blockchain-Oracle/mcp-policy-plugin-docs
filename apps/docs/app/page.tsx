@@ -57,9 +57,8 @@ export default function Home() {
               <Image
                 src="/stellar-logo.svg"
                 alt="Stellar"
-                width={48}
-                height={48}
-                style={{ width: 48, height: 48 }}
+                width={128}
+                height={128}
               />
             </Link>
             <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
