@@ -79,7 +79,7 @@ export default function Home() {
                   Generate MCP servers in TypeScript or Python with smart contract integration,
                   transaction signing, and passkey support.
                 </p>
-                <Link href="/docs/mcp-generator" style={{ fontSize: '0.875rem', fontWeight: 500, textDecoration: 'none' }}>
+                <Link href="/docs/mcp-generator" style={{ fontSize: '0.875rem', fontWeight: 500, textDecoration: 'none', color: 'hsl(var(--foreground))', transition: 'opacity 0.2s' }}>
                   Learn more →
                 </Link>
               </div>
@@ -92,7 +92,7 @@ export default function Home() {
                   Scaffold complete Stellar smart contract projects with TypeScript bindings,
                   testing infrastructure, and deployment workflows.
                 </p>
-                <Link href="/docs/policy-cli" style={{ fontSize: '0.875rem', fontWeight: 500, textDecoration: 'none' }}>
+                <Link href="/docs/policy-cli" style={{ fontSize: '0.875rem', fontWeight: 500, textDecoration: 'none', color: 'hsl(var(--foreground))', transition: 'opacity 0.2s' }}>
                   Learn more →
                 </Link>
               </div>

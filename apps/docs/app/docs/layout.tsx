@@ -1,4 +1,4 @@
-import { Footer, Layout, Navbar } from 'nextra-theme-docs'
+import { Layout, Navbar } from 'nextra-theme-docs'
 import { getPageMap } from 'nextra/page-map'
 import 'nextra-theme-docs/style.css'
 import type { ReactNode } from 'react'
@@ -16,23 +16,27 @@ const navbar = (
   />
 )
 
-const footer = (
-  <Footer>
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', gap: '12px' }}>
-      <p style={{ fontSize: '12px', color: '#666' }}>
-        MIT {new Date().getFullYear()} - Stellar MCP & Policy Plugins
-      </p>
-    </div>
-  </Footer>
-)
+function prefixRoutes(items: any[], prefix: string): any[] {
+  return items.map(item => {
+    if (item.route && !item.route.startsWith(prefix)) {
+      item.route = prefix + item.route
+    }
+    if (item.children) {
+      item.children = prefixRoutes(item.children, prefix)
+    }
+    return item
+  })
+}
 
 export default async function DocsLayout({ children }: { children: ReactNode }) {
+  const pageMap = await getPageMap()
+  const prefixedPageMap = prefixRoutes(pageMap, '/docs')
+
   return (
     <Layout
       navbar={navbar}
-      pageMap={await getPageMap()}
+      pageMap={prefixedPageMap}
       docsRepositoryBase="https://github.com/stellar/stellar-mcp-demo"
-      footer={footer}
       sidebar={{ defaultMenuCollapseLevel: 1 }}
       editLink="Edit this page on GitHub"
     >
