@@ -17,8 +17,8 @@ The MCP generator creates MCP servers from deployed Soroban contracts.
 ### Clone the Repository
 
 ```bash
-git clone https://github.com/stellar/stellar-mcp-generator
-cd stellar-mcp-generator
+git clone https://github.com/JoseCToscano/stellar-mcp
+cd stellar-mcp/stellar-mcp-generator
 ```
 
 ### Install via Cargo
@@ -48,8 +48,8 @@ The Policy CLI generates policy-enforced smart contracts via an interactive wiza
 ### Clone the Repository
 
 ```bash
-git clone https://github.com/stellar/stellar-policy-cli
-cd stellar-policy-cli
+git clone https://github.com/JoseCToscano/stellar-mcp
+cd stellar-mcp/stellar-policy-cli
 ```
 
 ### Install via Cargo
@@ -103,10 +103,15 @@ To update a plugin to the latest version:
 
 ```bash
 # Pull latest changes
-cd stellar-mcp-generator
+cd stellar-mcp
 git pull origin main
 
-# Reinstall
+# Reinstall MCP generator
+cd stellar-mcp-generator
+cargo install --path . --force
+
+# Reinstall Policy CLI
+cd ../stellar-policy-cli
 cargo install --path . --force
 ```
 
@@ -129,12 +134,13 @@ cargo uninstall stellar-policy
 If you need a specific version:
 
 ```bash
-git clone https://github.com/stellar/stellar-mcp-generator
-cd stellar-mcp-generator
+git clone https://github.com/JoseCToscano/stellar-mcp
+cd stellar-mcp
 git checkout feature/some-branch
+cd stellar-mcp-generator # or stellar-policy-cli
 cargo install --path .
 ```
 
 ## Next Steps
 
-Proceed to [Verification](/getting-started/verification) to ensure everything works correctly.
+Proceed to [Verification](/docs/getting-started/verification) to ensure everything works correctly.

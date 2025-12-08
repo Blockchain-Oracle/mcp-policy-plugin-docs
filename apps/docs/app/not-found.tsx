@@ -22,13 +22,10 @@ export default function NotFound() {
         }}>
           <span style={{ fontSize: '18px', fontWeight: 600 }}>Stellar MCP & Policy Plugins</span>
           <nav style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-            <a href="/docs" style={{ textDecoration: 'none', color: '#a3a3a3' }}>
-              Documentation
-            </a>
-            <a href="/docs/examples" style={{ textDecoration: 'none', color: '#a3a3a3' }}>
-              Examples
-            </a>
-            <a href="https://github.com/stellar" style={{ textDecoration: 'none', color: '#a3a3a3' }}>
+            <Link href="/" style={{ textDecoration: 'none', color: '#a3a3a3' }}>
+              Home
+            </Link>
+            <a href="https://github.com/JoseCToscano/stellar-mcp" style={{ textDecoration: 'none', color: '#a3a3a3' }}>
               GitHub
             </a>
           </nav>

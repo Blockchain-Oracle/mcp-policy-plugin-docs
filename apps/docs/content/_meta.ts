@@ -29,7 +29,7 @@ export default {
     items: {
       github: {
         title: 'GitHub',
-        href: 'https://github.com/stellar',
+        href: 'https://github.com/JoseCToscano/stellar-mcp',
       },
       stellar: {
         title: 'Stellar Docs',

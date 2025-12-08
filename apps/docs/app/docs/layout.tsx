@@ -12,7 +12,7 @@ const logo = (
 const navbar = (
   <Navbar
     logo={logo}
-    projectLink="https://github.com/stellar"
+    projectLink="https://github.com/JoseCToscano/stellar-mcp"
   />
 )
 
@@ -36,7 +36,7 @@ export default async function DocsLayout({ children }: { children: ReactNode }) 
     <Layout
       navbar={navbar}
       pageMap={prefixedPageMap}
-      docsRepositoryBase="https://github.com/stellar/stellar-mcp-demo"
+      docsRepositoryBase="https://github.com/JoseCToscano/stellar-mcp/tree/main"
       sidebar={{ defaultMenuCollapseLevel: 1 }}
       editLink="Edit this page on GitHub"
     >

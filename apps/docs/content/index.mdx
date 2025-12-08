@@ -57,14 +57,16 @@ cargo install stellar-cli
 ### Install the Plugins
 
 ```bash
-# Clone and install MCP Generator
-git clone https://github.com/stellar/stellar-mcp-generator
+# Clone the repository
+git clone https://github.com/JoseCToscano/stellar-mcp
+cd stellar-mcp
+
+# Install MCP Generator
 cd stellar-mcp-generator
 cargo install --path .
 
-# Clone and install Policy CLI
-git clone https://github.com/stellar/stellar-policy-cli
-cd stellar-policy-cli
+# Install Policy CLI
+cd ../stellar-policy-cli
 cargo install --path .
 ```
 
@@ -110,8 +112,8 @@ stellar policy generate
 ## What's Next?
 
 <Cards>
-  <Cards.Card title="Getting Started" href="/getting-started" />
-  <Cards.Card title="MCP Generator" href="/mcp-generator" />
-  <Cards.Card title="Policy CLI" href="/policy-cli" />
-  <Cards.Card title="Examples" href="/examples" />
+  <Cards.Card title="Getting Started" href="/docs/getting-started" />
+  <Cards.Card title="MCP Generator" href="/docs/mcp-generator" />
+  <Cards.Card title="Policy CLI" href="/docs/policy-cli" />
+  <Cards.Card title="Examples" href="/docs/examples" />
 </Cards>

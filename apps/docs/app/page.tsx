@@ -1,26 +1,12 @@
 import Image from 'next/image'
 import Link from 'next/link'
+import { LandingHeader } from '../components/landing-header'
 
 export default function Home() {
   return (
     <div className="landing-page">
       {/* Header */}
-      <header className="header">
-        <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{ fontSize: '18px', fontWeight: 600 }}>Stellar MCP & Policy Plugins</span>
-          <nav style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-            <Link href="/docs" style={{ textDecoration: 'none', color: 'hsl(var(--muted-foreground))' }}>
-              Documentation
-            </Link>
-            <Link href="/docs/examples" style={{ textDecoration: 'none', color: 'hsl(var(--muted-foreground))' }}>
-              Examples
-            </Link>
-            <Link href="https://github.com/stellar" style={{ textDecoration: 'none', color: 'hsl(var(--muted-foreground))' }}>
-              GitHub
-            </Link>
-          </nav>
-        </div>
-      </header>
+      <LandingHeader />
 
       {/* Main Content */}
       <main>
@@ -111,7 +97,7 @@ export default function Home() {
       <footer style={{ borderTop: '1px solid hsl(var(--border))', padding: '2rem 0' }}>
         <div className="container">
           <div style={{ display: 'flex', justifyContent: 'center', gap: '2rem' }}>
-            <Link href="https://github.com/stellar" style={{ fontSize: '0.875rem', color: 'hsl(var(--muted-foreground))', textDecoration: 'none' }}>
+            <Link href="https://github.com/JoseCToscano/stellar-mcp" style={{ fontSize: '0.875rem', color: 'hsl(var(--muted-foreground))', textDecoration: 'none' }}>
               GitHub
             </Link>
             <Link href="https://stellar.org" style={{ fontSize: '0.875rem', color: 'hsl(var(--muted-foreground))', textDecoration: 'none' }}>
