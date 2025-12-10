@@ -1,0 +1,158 @@
+# Web Frontend
+
+The Stellar MCP Generator supports generating a fully functional **Vite web frontend** alongside your MCP server. This feature allows you to interact with your Soroban contracts through a user-friendly, chat-based interface that leverages the generated MCP tools.
+
+## Overview
+
+When you generate an MCP server with the frontend option, you get:
+
+1.  **MCP Server**: The backend that connects to your contract (TypeScript or Python).
+2.  **Web Client**: A modern Vite application that communicates with the MCP server.
+
+The frontend acts as a client for the MCP server, allowing you to trigger contract functions through a chat interface. It also handles transaction signing directly in the browser, making it a complete dApp prototype.
+
+## How to Generate
+
+You can enable frontend generation using the interactive wizard or the CLI flag.
+
+### Using the Wizard
+
+When running `stellar mcp generate`, the wizard will ask:
+
+```text
+? Generate a React frontend alongside the MCP server?
+  No - MCP server only
+❯ Yes - Generate React frontend
+```
+
+Select "Yes" to include the web frontend.
+
+### Using the CLI
+
+Use the `--with-frontend` flag:
+
+```bash
+stellar mcp generate \
+  --contract-id CAHLJEQUCNTV7JPAPCMLCBIHOX7FFB57DUARJ6XGTW27FPCVKKY7JM2A \
+  --with-frontend \
+  --output my-contract-app
+```
+
+## Project Structure
+
+The generated project will have two main directories:
+
+```text
+my-contract-app/
+├── server/           # MCP Server (FastMCP with HTTP transport)
+│   ├── src/
+│   ├── package.json (or pyproject.toml)
+│   └── ...
+└── frontend/         # Vite Web Application
+    ├── src/
+    │   ├── client/              # React frontend
+    │   │   ├── components/      # UI components
+    │   │   │   ├── ChatInterface.tsx      # Main chat UI
+    │   │   │   ├── MessageList.tsx        # Chat messages
+    │   │   │   ├── ChatInput.tsx          # Input field
+    │   │   │   ├── AuthModeSelector.tsx   # Auth mode toggle
+    │   │   │   ├── WalletConnector.tsx    # Wallet connection
+    │   │   │   ├── ContractTools.tsx      # Manual tools (legacy)
+    │   │   │   └── ToolExecutor.tsx       # Tool execution (legacy)
+    │   │   ├── lib/
+    │   │   │   └── mcp-client.ts          # MCP client hook
+    │   │   ├── App.tsx          # Root component
+    │   │   ├── main.tsx         # Entry point
+    │   │   └── index.css        # Tailwind styles
+    │   └── server/              # Express API backend
+    │       ├── index.ts         # Server entry point
+    │       └── routes/
+    │           └── chat.ts      # AI chat endpoint
+    ├── package.json
+    ├── vite.config.ts
+    ├── tailwind.config.ts
+    └── .env.example
+```
+
+## Running the Application
+
+To run the full application, you need to start both the MCP server and the frontend.
+
+### 1. Start the MCP Server
+
+The MCP server must be running in HTTP mode to accept connections from the frontend.
+
+**TypeScript Server:**
+```bash
+cd server
+pnpm install
+cp .env.example .env
+# Edit .env with your settings
+pnpm run build
+USE_HTTP=true PORT=3000 pnpm start
+```
+
+**Python Server:**
+```bash
+cd server
+uv sync
+cp .env.example .env
+# Edit .env with your settings
+USE_HTTP=true PORT=3000 uv run python server.py
+```
+
+### 2. Start the Frontend
+
+Open a new terminal window:
+
+```bash
+cd frontend
+pnpm install
+cp .env.example .env.local
+pnpm dev
+```
+
+The frontend will be available at [https://localhost:5173](https://localhost:5173) (or the port specified in the console).
+
+## Features
+
+### AI Chat Interface
+The frontend includes a chat interface where you can ask natural language questions to interact with your contract. For example:
+- "What is the token balance of account G..."
+- "Transfer 10 tokens to account G..."
+- "Initialize the contract with admin G..."
+
+The MCP server interprets these requests and converts them into contract calls.
+
+### Transaction Signing
+The frontend supports multiple ways to sign transactions:
+
+1.  **Wallet Integration**: Connect a browser wallet (like Freighter) to sign transactions securely.
+2.  **Secret Key**: (For development) Enter a secret key directly to sign transactions.
+
+When a chat command results in a transaction (like a transfer), the UI presents a "Transaction Preview" allowing you to review and sign the operation.
+
+### Server-Sent Events (SSE)
+The frontend uses Server-Sent Events (SSE) to stream responses from the MCP server. This ensures a responsive UI where you can see the AI's thought process and tool execution in real-time.
+
+## Architecture Details
+
+-   **Transport**: The communication between the frontend and the MCP server happens over HTTP using the `stateless_http` transport mode of FastMCP.
+-   **Type Safety**: If you generate a TypeScript server, the frontend shares generated types, ensuring type safety for contract arguments and return values.
+-   **Modular Signing**: The transaction signing logic is modular, allowing developers to easily swap or add new wallet providers (e.g., Albedo, PasskeyKit).
+
+## Customization
+
+The generated frontend is a standard Vite React application. You can customize it by:
+
+-   **Styling**: Modifying the Tailwind CSS configuration and classes in `src/client`.
+-   **Components**: Editing the chat components in `src/client/components`.
+-   **Tools**: Adding custom tools to the MCP server that the frontend can then leverage.
+
+## Troubleshooting
+
+### Connection Refused
+Ensure the MCP server is running and listening on the expected port (default 3000). Check the `NEXT_PUBLIC_MCP_SERVER_URL` in your frontend's `.env.local`.
+
+### Transaction Failures
+If transactions fail, check the browser console for details. Ensure the signing account has sufficient funds for fees and that the contract logic allows the operation.

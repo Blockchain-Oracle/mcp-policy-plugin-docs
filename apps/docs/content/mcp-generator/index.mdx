@@ -18,6 +18,14 @@ Given a deployed Soroban contract, the generator:
 4. **Creates utility functions** for transaction signing and submission
 5. **Produces TypeScript bindings** using the official Stellar SDK
 
+## Features at a Glance
+
+-   **TypeScript and Python Server Generation**: Supports generating MCP servers in both TypeScript and Python.
+-   **Web Frontend Generation**: Optionally generates a Vite web application for browser-based contract interaction.
+-   **PasskeyKit Integration**: Seamless integration for smart wallet authentication and transaction signing.
+-   **Robust Transaction Signing**: Includes utilities for transaction signing with sequence staleness handling.
+-   **Claude Desktop Integration**: Enables AI-assisted interaction with your contracts via Claude Desktop.
+
 ## Supported Languages
 
 | Language | Framework | Features |
@@ -47,6 +55,13 @@ Generated servers include robust signing utilities:
 - **signTransaction()** - Signs with keypair, handles sequence staleness
 - **signAndSendWithPasskey()** - Full PasskeyKit smart wallet integration
 - **submitTransaction()** - Submits and polls for results
+
+### Web Frontend Generation
+
+Optionally generates a Next.js web application that:
+- Connects to your MCP server
+- Provides a chat interface for interacting with your contract
+- Handles transaction signing via wallet integration
 
 ### Official Stellar Bindings
 
@@ -84,21 +99,46 @@ The server exposes your contract functions as MCP tools that Claude can use.
 ## Generated Project Structure
 
 ```
-my-token-mcp/
-├── src/
-│   ├── index.ts           # MCP server with all tools
-│   ├── lib/
-│   │   ├── utils.ts       # signTransaction()
-│   │   ├── passkey.ts     # signAndSendWithPasskey()
-│   │   ├── submit.ts      # submitTransaction()
-│   │   └── transaction.ts # parseTransactionResult()
-│   ├── tools/             # Contract function handlers
-│   ├── schemas/           # Zod validation schemas
-│   └── bindings/          # Official Stellar TypeScript bindings
-├── deploy-wallet.ts       # PasskeyKit wallet deployment
-├── package.json
-├── tsconfig.json
-└── .env.example
+my-contract-app/
+├── server/           # MCP Server (FastMCP with HTTP transport)
+│   ├── src/
+│   │   ├── index.ts           # MCP server with all tools
+│   │   ├── lib/
+│   │   │   ├── utils.ts       # signTransaction()
+│   │   │   ├── passkey.ts     # signAndSendWithPasskey()
+│   │   │   ├── submit.ts      # submitTransaction()
+│   │   │   └── transaction.ts # parseTransactionResult()
+│   │   ├── tools/             # Contract function handlers
+│   │   ├── schemas/           # Zod validation schemas
+│   │   └── bindings/          # Official Stellar TypeScript bindings
+│   ├── deploy-wallet.ts       # PasskeyKit wallet deployment
+│   ├── package.json
+│   ├── tsconfig.json
+│   └── .env.example
+└── frontend/         # Vite Web Application
+    ├── src/
+    │   ├── client/              # React frontend
+    │   │   ├── components/      # UI components
+    │   │   │   ├── ChatInterface.tsx      # Main chat UI
+    │   │   │   ├── MessageList.tsx        # Chat messages
+    │   │   │   ├── ChatInput.tsx          # Input field
+    │   │   │   ├── AuthModeSelector.tsx   # Auth mode toggle
+    │   │   │   ├── WalletConnector.tsx    # Wallet connection
+    │   │   │   ├── ContractTools.tsx      # Manual tools (legacy)
+    │   │   │   └── ToolExecutor.tsx       # Tool execution (legacy)
+    │   │   ├── lib/
+    │   │   │   └── mcp-client.ts          # MCP client hook
+    │   │   ├── App.tsx          # Root component
+    │   │   ├── main.tsx         # Entry point
+    │   │   └── index.css        # Tailwind styles
+    │   └── server/              # Express API backend
+    │       ├── index.ts         # Server entry point
+    │       └── routes/
+    │           └── chat.ts      # AI chat endpoint
+    ├── package.json
+    ├── vite.config.ts
+    ├── tailwind.config.ts
+    └── .env.example
 ```
 
 ## How It Works
@@ -124,6 +164,7 @@ Complete MCP Server Project
 <Cards>
   <Cards.Card title="CLI Reference" href="/docs/mcp-generator/cli-reference" />
   <Cards.Card title="Interactive Wizard" href="/docs/mcp-generator/wizard" />
+  <Cards.Card title="Web Frontend" href="/docs/mcp-generator/web-frontend" />
   <Cards.Card title="TypeScript Server" href="/docs/mcp-generator/typescript-server" />
   <Cards.Card title="Python Server" href="/docs/mcp-generator/python-server" />
   <Cards.Card title="Transaction Signing" href="/docs/mcp-generator/transaction-signing" />

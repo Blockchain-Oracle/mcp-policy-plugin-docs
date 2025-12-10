@@ -16,7 +16,7 @@ stellar mcp generate
 
 ## Wizard Flow
 
-The wizard guides you through 6 configuration steps:
+The wizard guides you through 7 configuration steps:
 
 <Steps>
 
@@ -59,6 +59,16 @@ Choose your target language.
 💻 Select the target language:
 > typescript
   python
+```
+
+### Frontend Generation
+
+Choose whether to generate a web frontend.
+
+```
+⚙️ Generate a React frontend alongside the MCP server?
+> No - MCP server only
+  Yes - Generate React frontend
 ```
 
 ### Output Directory
@@ -166,7 +176,7 @@ from a deployed Soroban contract.
 
 🚀 Ready to begin? [Y/n] Y
 
-Step 1/6: Contract ID
+Step 1/7: Contract ID
 ━━━━━━━━━━━━━━━━━━━━━
 
 🔗 Enter the contract ID (starts with 'C', 56 characters):
@@ -174,7 +184,7 @@ Step 1/6: Contract ID
 
 ✅ Contract ID validated
 
-Step 2/6: Network
+Step 2/7: Network
 ━━━━━━━━━━━━━━━━━
 
 🌐 Select the network:
@@ -186,7 +196,7 @@ Step 2/6: Network
 
 ✅ Network: testnet
 
-Step 3/6: Language
+Step 3/7: Language
 ━━━━━━━━━━━━━━━━━━
 
 💻 Select the target language:
@@ -195,7 +205,16 @@ Step 3/6: Language
 
 ✅ Language: typescript
 
-Step 4/6: Output Directory
+Step 4/7: Frontend Generation
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚙️ Generate a React frontend alongside the MCP server?
+  ▸ No - MCP server only
+    Yes - Generate React frontend
+
+✅ Frontend: No
+
+Step 5/7: Output Directory
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 📁 Enter output directory [./mcp-server]:
@@ -203,7 +222,7 @@ Step 4/6: Output Directory
 
 ✅ Output: ./my-token-mcp
 
-Step 5/6: Contract Name (Optional)
+Step 6/7: Contract Name (Optional)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 📝 Enter contract name (press Enter to skip):
@@ -211,7 +230,7 @@ Step 5/6: Contract Name (Optional)
 
 ✅ Name: my-token
 
-Step 6/6: Server Name
+Step 7/7: Server Name
 ━━━━━━━━━━━━━━━━━━━━━
 
 🏷️ Enter MCP server name [soroban-contract]:

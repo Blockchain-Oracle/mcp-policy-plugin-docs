@@ -35,6 +35,7 @@ stellar mcp generate [OPTIONS] --contract-id <CONTRACT_ID>
 | `--network-passphrase` | | Network default | Network passphrase |
 | `--force` | | `false` | Overwrite existing output directory |
 | `--verbose` | `-v` | `false` | Enable verbose debug output |
+| `--with-frontend` | | `false` | Generate a Vite web frontend |
 
 #### Network Defaults
 
@@ -76,6 +77,15 @@ stellar mcp generate \
   --contract-id CAHLJEQUCNTV7JPAPCMLCBIHOX7FFB57DUARJ6XGTW27FPCVKKY7JM2A \
   --network testnet \
   --output my-token-mcp
+```
+
+### Generate with Web Frontend
+
+```bash
+stellar mcp generate \
+  --contract-id CAHLJEQUCNTV7JPAPCMLCBIHOX7FFB57DUARJ6XGTW27FPCVKKY7JM2A \
+  --with-frontend \
+  --output my-contract-app
 ```
 
 ### Python Server
