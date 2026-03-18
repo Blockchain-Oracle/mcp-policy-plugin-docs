@@ -77,19 +77,34 @@ Get a free testnet OZ Relayer API key at [https://channels.openzeppelin.com/test
 ```
 User fills tool form
       ↓
-client.simulate() → XDR preview + fee estimate
+client.simulate(toolName, args)   ← @stellar-mcp/client v0.2.0
+      ↓                             returns { xdr, fee, simulationResult }
+TransactionModal opens
+  • Operation name
+  • Arguments
+  • Estimated fee (from simulate)   ← shown in green if available
+  • OZ Relayer sponsorship note     ← shown if fee is null
       ↓
-User reviews TransactionModal (XDR viewer, fee)
+User clicks "Sign & Confirm"
       ↓
-User confirms
+PasskeyKit WebAuthn prompt (biometric / security key)
       ↓
-PasskeyKit creates / connects wallet
-      ↓
-passkeyKitSigner signs auth entries (WALLET_SIGNER_SECRET)
 OZ Relayer sponsors + submits transaction
       ↓
-Result shown in UI (success / error toast)
+Result shown (success toast + tx hash / error toast)
 ```
+
+### How simulate works
+
+For **write operations**, `useTransaction` now calls `client.simulate()` instead of `client.call()`. The SDK's `simulate()` method:
+
+1. Calls the MCP server (which runs Soroban simulation server-side)
+2. Extracts the estimated fee from the assembled XDR via `extractFeeFromXdr`
+3. Returns `{ xdr, fee, simulationResult }` — fee is in stroops
+
+The `TransactionModal` converts stroops to XLM for display (e.g. `1000 stroops → 0.0001 XLM`).
+
+For **read operations**, `client.call()` is used directly (no fee needed).
 
 ## Wallet Setup
 

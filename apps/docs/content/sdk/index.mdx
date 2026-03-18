@@ -6,7 +6,7 @@ import { Steps, Callout } from 'nextra/components'
 
 # `@stellar-mcp/client` SDK
 
-Type-safe programmatic client for Stellar MCP servers — discover tools, call Soroban contracts, and sign/submit transactions with pluggable signer adapters.
+**v0.2.0** — Type-safe programmatic client for Stellar MCP servers — discover tools, call Soroban contracts, **simulate transactions with fee estimates**, and sign/submit with pluggable signer adapters.
 
 ## Overview
 
@@ -108,6 +108,48 @@ const result = await client.signAndSubmit(xdr!, {
 
 client.close();
 ```
+
+## Simulate Before You Sign
+
+`client.simulate()` gives you a fee preview and dry-run result **before** asking the user to sign — ideal for showing "This will cost ~0.0001 XLM" or warning if a transaction will fail.
+
+```ts
+import { MCPClient, secretKeySigner } from '@stellar-mcp/client';
+import { Networks } from '@stellar/stellar-sdk';
+
+const client = new MCPClient({
+  url: 'http://localhost:3001/mcp',
+  networkPassphrase: Networks.TESTNET,
+  rpcUrl: 'https://soroban-testnet.stellar.org',
+});
+
+// 1. Preview — no signing, no fees
+const preview = await client.simulate('deploy-token', {
+  deployer: 'GABC...',
+  config: { name: 'MyToken', symbol: 'MTK', decimals: 7 },
+});
+
+console.log(`Estimated fee: ${preview.fee} stroops`);
+// e.g. "1000 stroops" → 0.0001 XLM
+
+// 2. Only proceed if user confirms
+const { hash } = await client.signAndSubmit(preview.xdr!, {
+  signer: secretKeySigner(process.env.SECRET_KEY!),
+});
+
+// 3. Wait for finality
+const result = await client.waitForConfirmation(hash);
+console.log(result.status); // → 'SUCCESS'
+
+client.close();
+```
+
+`simulate()` returns `{ xdr, fee, simulationResult }`:
+- `xdr` — assembled transaction XDR, ready to pass to `signAndSubmit()`
+- `fee` — estimated fee **in stroops** (divide by 10,000,000 for XLM)
+- `simulationResult` — for read-only tools, this is the answer (no XDR or fee)
+
+The Smart Wallet template uses this automatically — users see the estimated fee in the confirmation modal before signing.
 
 ## `mcp-generate-types` CLI
 
