@@ -1,0 +1,146 @@
+---
+title: Infrastructure
+---
+
+import { Callout } from 'nextra/components'
+
+# Infrastructure
+
+Generated MCP servers include production-ready infrastructure out of the box: health checks, rate limiting, CORS, graceful shutdown, and Docker support.
+
+## Health Endpoint
+
+Both TypeScript and Python servers expose a `/health` GET endpoint that bypasses rate limiting:
+
+```
+GET /health
+→ 200 { "status": "ok", "timestamp": "2026-01-01T00:00:00.000Z" }
+```
+
+Use this with load balancers, container health checks, and uptime monitors.
+
+## Rate Limiting
+
+Generated servers include a sliding-window rate limiter per IP address. Requests exceeding the limit receive a `429 Too Many Requests` response with a `retry-after` header.
+
+```bash
+RATE_LIMIT=100   # requests per minute per IP (default: 100)
+```
+
+The in-memory rate limiter is purged every 5 minutes to avoid unbounded memory growth. For multi-instance deployments, consider using a Redis-backed rate limiter.
+
+<Callout type="info">
+The `/health` endpoint is always excluded from rate limiting.
+</Callout>
+
+## CORS
+
+```bash
+CORS_ORIGINS=*   # allow all origins (default)
+CORS_ORIGINS=https://myapp.com,https://staging.myapp.com  # comma-separated whitelist
+```
+
+The TypeScript server adds CORS headers on every response. Set `CORS_ORIGINS` to a comma-separated list of allowed origins, or `*` to allow all.
+
+## Graceful Shutdown
+
+Servers handle `SIGTERM` and `SIGINT` with a clean shutdown sequence:
+
+- Stop accepting new connections
+- Wait for in-flight requests to complete (up to 10 seconds)
+- Exit cleanly
+
+This ensures zero dropped requests during deployments and container restarts.
+
+## Security Headers (TypeScript)
+
+TypeScript servers add security headers to every response:
+
+| Header | Value |
+|---|---|
+| `X-Content-Type-Options` | `nosniff` |
+| `X-Frame-Options` | `DENY` |
+| `Referrer-Policy` | `no-referrer` |
+
+## Docker
+
+Both server types include a production-ready `Dockerfile`:
+
+### TypeScript
+
+```dockerfile
+# Multi-stage build
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --production=false
+COPY . .
+RUN npm run build
+
+FROM node:20-alpine AS runner
+WORKDIR /app
+RUN addgroup -S app && adduser -S app -G app
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+USER app
+EXPOSE 3000
+HEALTHCHECK CMD wget -qO- http://localhost:3000/health || exit 1
+CMD ["node", "dist/index.js"]
+```
+
+### Python
+
+```dockerfile
+FROM python:3.11-slim
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+USER nobody
+EXPOSE 3000
+HEALTHCHECK CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:3000/health')"
+CMD ["python", "server.py"]
+```
+
+### Running with Docker
+
+```bash
+# Build
+docker build -t my-mcp-server .
+
+# Run
+docker run -p 3000:3000 \
+  -e CONTRACT_ID=CBX7HKQ6WIOYAHS6SLL7Y3MRPTYOSGJTDL6XXYYOTEWEN3PRGK3DSVZG \
+  -e RPC_URL=https://soroban-testnet.stellar.org \
+  -e NETWORK_PASSPHRASE="Test SDF Network ; September 2015" \
+  -e USE_HTTP=true \
+  my-mcp-server
+```
+
+## Vercel Deployment
+
+Generated servers include a `vercel.json` for serverless deployment. Each request creates a fresh MCP server instance (stateless HTTP mode).
+
+```bash
+vercel deploy --prod
+```
+
+Set environment variables in Vercel Dashboard → Settings → Environment Variables.
+
+<Callout type="warning">
+Vercel's serverless runtime has a cold-start time. For latency-sensitive use cases, deploy to a persistent container instead.
+</Callout>
+
+## Environment Variables Reference
+
+| Variable | Default | Description |
+|---|---|---|
+| `USE_HTTP` | `false` | Set `true` to enable HTTP mode (required for web clients) |
+| `PORT` | `3000` | HTTP server port |
+| `RATE_LIMIT` | `100` | Max requests per minute per IP |
+| `CORS_ORIGINS` | `*` | Allowed CORS origins (comma-separated or `*`) |
+| `CONTRACT_ID` | — | Soroban contract address |
+| `RPC_URL` | — | Soroban RPC endpoint |
+| `NETWORK_PASSPHRASE` | — | Stellar network passphrase |
+
+When `USE_HTTP=false` (default), the server uses stdio transport for Claude Desktop. HTTP mode is required for web frontends, the `@stellar-mcp/client` SDK, and the included templates.

@@ -10,7 +10,7 @@ This example shows a Python MCP server generated from the same Token Factory con
 
 ```bash
 stellar mcp generate \
-    --contract-id CAHLJEQUCNTV7JPAPCMLCBIHOX7FFB57DUARJ6XGTW27FPCVKKY7JM2A \
+    --contract-id CBX7HKQ6WIOYAHS6SLL7Y3MRPTYOSGJTDL6XXYYOTEWEN3PRGK3DSVZG \
     --network testnet \
     --lang python \
     --name mcp-server \
@@ -53,7 +53,7 @@ mcp = FastMCP("mcp-server")
 
 config = ContractConfig(
     contract_id=os.getenv("CONTRACT_ID",
-        "CAHLJEQUCNTV7JPAPCMLCBIHOX7FFB57DUARJ6XGTW27FPCVKKY7JM2A"),
+        "CBX7HKQ6WIOYAHS6SLL7Y3MRPTYOSGJTDL6XXYYOTEWEN3PRGK3DSVZG"),
     rpc_url=os.getenv("RPC_URL",
         "https://soroban-testnet.stellar.org"),
     network_passphrase=os.getenv("NETWORK_PASSPHRASE",
@@ -309,7 +309,7 @@ cd mcp-server
 uv sync
 
 # Set environment variables
-export CONTRACT_ID=CAHLJEQUCNTV7JPAPCMLCBIHOX7FFB57DUARJ6XGTW27FPCVKKY7JM2A
+export CONTRACT_ID=CBX7HKQ6WIOYAHS6SLL7Y3MRPTYOSGJTDL6XXYYOTEWEN3PRGK3DSVZG
 export RPC_URL=https://soroban-testnet.stellar.org
 export NETWORK_PASSPHRASE="Test SDF Network ; September 2015"
 
@@ -331,7 +331,7 @@ uv run server.py
                 "server.py"
             ],
             "env": {
-                "CONTRACT_ID": "CAHLJEQUCNTV7JPAPCMLCBIHOX7FFB57DUARJ6XGTW27FPCVKKY7JM2A",
+                "CONTRACT_ID": "CBX7HKQ6WIOYAHS6SLL7Y3MRPTYOSGJTDL6XXYYOTEWEN3PRGK3DSVZG",
                 "RPC_URL": "https://soroban-testnet.stellar.org",
                 "NETWORK_PASSPHRASE": "Test SDF Network ; September 2015",
                 "SIGNER_SECRET": "SXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"

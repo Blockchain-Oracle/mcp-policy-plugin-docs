@@ -1,0 +1,148 @@
+---
+title: Telegram Bot Template
+---
+
+import { Steps, Callout } from 'nextra/components'
+
+# Telegram Bot Template
+
+A Telegram bot that connects any Stellar MCP server to a chat interface. Supports direct command mode and optional AI chat mode powered by Claude or GPT-4o.
+
+## Setup
+
+<Steps>
+
+### Clone and install
+
+```bash
+cd stellar-mcp/templates/telegram-bot
+npm install
+cp .env.example .env
+```
+
+### Create a Telegram bot
+
+1. Open [@BotFather](https://t.me/BotFather) on Telegram
+2. Send `/newbot` and follow the prompts
+3. Copy the token into `TELEGRAM_BOT_TOKEN`
+
+### Start your MCP server
+
+The bot connects to any running MCP server. Use the hosted token-factory testnet server to get started quickly:
+
+```bash
+MCP_SERVER_URL=https://stellar-mcp-token-factory.vercel.app/mcp
+```
+
+Or point at your own generated server.
+
+### Run locally
+
+```bash
+npm run dev
+```
+
+### Deploy to Vercel
+
+```bash
+vercel deploy
+```
+
+Then configure the webhook:
+
+```bash
+curl "https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://your-app.vercel.app/api/webhook"
+```
+
+</Steps>
+
+## Environment Variables
+
+| Variable | Required | Description |
+|---|---|---|
+| `TELEGRAM_BOT_TOKEN` | Yes | Token from @BotFather |
+| `MCP_SERVER_URL` | Yes | Full URL of the MCP server (e.g. `https://stellar-mcp-token-factory.vercel.app/mcp`) |
+| `NETWORK_PASSPHRASE` | Yes | Stellar network passphrase |
+| `RPC_URL` | Yes | Soroban RPC endpoint |
+| `SIGNER_SECRET` | No | Stellar secret key for signing write ops. If unset, `/call` returns unsigned XDR. |
+| `AI_ENABLED` | No | Set `true` to enable natural language chat mode |
+| `ANTHROPIC_API_KEY` | No | Required if `AI_ENABLED=true` (uses claude-haiku-4-5-20251001) |
+| `OPENAI_API_KEY` | No | Alternative to Anthropic key (uses gpt-4o) |
+| `KV_REST_API_URL` | No | Auto-set by Vercel KV — enables persistent conversation history |
+| `KV_REST_API_TOKEN` | No | Auto-set by Vercel KV |
+
+## Commands
+
+| Command | Description |
+|---|---|
+| `/start` | Welcome message and help |
+| `/list` | List all available tools on the MCP server |
+| `/call <tool> [arg=value …]` | Call a tool by name with inline args |
+| `/help` | Show available commands |
+
+### `/call` examples
+
+```
+/call get-admin
+/call deploy-token deployer=GABC... config.name=MyToken config.symbol=MTK
+```
+
+For tools with complex args, the bot renders a **form card** — an interactive inline keyboard that collects each argument step by step before submitting.
+
+## AI Chat Mode
+
+When `AI_ENABLED=true`, the bot understands natural language:
+
+```
+User: How many tokens have been deployed?
+
+Bot: I'll check that for you.
+     [calling get-token-count...]
+     There are currently 42 tokens deployed on the factory.
+```
+
+The AI automatically selects the right tool, builds the args, and formats the result. If `SIGNER_SECRET` is set, it can also execute write operations when the user confirms.
+
+**AI model priority:** If both keys are set, Anthropic takes priority.
+
+## Persistent History (Vercel KV)
+
+Without KV, conversation history is in-memory and resets on cold starts. To enable persistence:
+
+1. Vercel Dashboard → Storage → Create KV Database
+2. Link it to your project — Vercel auto-sets `KV_REST_API_URL` and `KV_REST_API_TOKEN`
+3. Redeploy — no code changes needed
+
+## Vercel Deployment
+
+The template includes `vercel.json` with the webhook function configured. After deploying:
+
+```bash
+vercel deploy --prod
+```
+
+Set all environment variables in the Vercel dashboard (Settings → Environment Variables), then register the webhook URL.
+
+## Customization
+
+- **Add commands** — edit `src/commands.ts`
+- **Change AI model** — edit the model ID in `src/mcp.ts`
+- **Add contract tools** — just point `MCP_SERVER_URL` at a different MCP server; the bot auto-discovers tools
+
+## Troubleshooting
+
+### Bot not responding
+
+Check that the webhook is registered and your Vercel deployment is live:
+
+```bash
+curl "https://api.telegram.org/bot<TOKEN>/getWebhookInfo"
+```
+
+### "Tool not found"
+
+Run `/list` to see the current tool names on your MCP server. Tool names are kebab-case (e.g. `deploy-token`, not `deployToken`).
+
+### Write ops return XDR instead of submitting
+
+Set `SIGNER_SECRET` to a funded Stellar secret key. Without it, the bot returns unsigned XDR for write operations.

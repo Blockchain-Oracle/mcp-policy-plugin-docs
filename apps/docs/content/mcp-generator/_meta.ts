@@ -7,5 +7,6 @@ export default {
   'web-frontend': 'Web Frontend',
   'transaction-signing': 'Transaction Signing',
   'passkey-integration': 'PasskeyKit Integration',
+  infrastructure: 'Infrastructure',
   'claude-desktop': 'Claude Desktop Setup',
 }

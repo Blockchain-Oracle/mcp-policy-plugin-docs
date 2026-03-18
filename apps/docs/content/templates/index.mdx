@@ -1,0 +1,55 @@
+---
+title: Templates
+---
+
+# Templates
+
+Stellar MCP ships three ready-to-deploy application templates that demonstrate how to build on top of a generated MCP server using `@stellar-mcp/client`.
+
+## Choosing a Template
+
+| Template | Best for | Runtime | Key dependency |
+|---|---|---|---|
+| [Telegram Bot](/templates/telegram-bot) | Chat-first interfaces, quick user access | Node.js (Vercel Functions) | grammy, Vercel AI SDK |
+| [Smart Wallet](/templates/smart-wallet) | Web dApps with passkey-based signing | Next.js 15 | passkey-kit 0.12, OZ Relayer |
+| [CLI Agent](/templates/cli-agent) | Developer tools, automation scripts | Node.js (terminal) | Commander, @clack/prompts |
+
+## Overview
+
+### Telegram Bot
+
+A Telegram bot that connects any Stellar MCP server to a chat interface. Supports two modes:
+
+- **Command mode** — structured `/list` and `/call` commands for direct tool access
+- **AI chat mode** — natural language conversation powered by Claude or GPT-4o, with the AI calling MCP tools automatically
+
+Persistent conversation history via Vercel KV. Deploys to Vercel as a webhook function.
+
+### Smart Wallet
+
+A Next.js 15 web frontend for interacting with Stellar MCP servers using PasskeyKit smart wallets. Features:
+
+- Auto-discovers tools from any MCP server via `@stellar-mcp/client`
+- Renders interactive forms for each tool using the schema utilities
+- PasskeyKit 0.12 integration with OpenZeppelin Relayer for gasless transactions
+- Transaction preview (XDR viewer) before signing
+- Freighter wallet support as an alternative signer
+
+### CLI Agent
+
+A terminal agent with a guided wizard, interactive REPL, and one-shot command mode. Useful for developers who want to interact with a Stellar contract directly from the terminal without building a UI.
+
+## Getting Started
+
+Each template is a standalone project. Clone the stellar-mcp repository and navigate to the template directory:
+
+```bash
+git clone https://github.com/JoseCToscano/stellar-mcp
+cd stellar-mcp/templates/<template-name>
+npm install
+cp .env.example .env
+# Edit .env with your values
+npm run dev
+```
+
+See each template's page for specific setup instructions and environment variable details.

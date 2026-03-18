@@ -1,0 +1,141 @@
+---
+title: Smart Wallet Template
+---
+
+import { Steps, Callout } from 'nextra/components'
+
+# Smart Wallet Template
+
+A Next.js 15 web frontend for interacting with any Stellar MCP server using PasskeyKit smart wallets and the OpenZeppelin Relayer for gasless transactions.
+
+## Setup
+
+<Steps>
+
+### Clone and install
+
+```bash
+cd stellar-mcp/templates/smart-wallet
+npm install
+cp .env.example .env
+```
+
+### Configure environment
+
+Edit `.env` with your values (see [Environment Variables](#environment-variables) below).
+
+### Run locally
+
+```bash
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+### Deploy to Vercel
+
+```bash
+vercel deploy --prod
+```
+
+Set all environment variables in the Vercel dashboard before deploying.
+
+</Steps>
+
+## Environment Variables
+
+| Variable | Required | Description |
+|---|---|---|
+| `NEXT_PUBLIC_MCP_SERVER_URL` | Yes | Browser-side URL to reach the MCP server. Defaults to `/mcp` (proxied by Next.js to avoid CORS). |
+| `MCP_PROXY_TARGET` | Yes | Server-side target for the Next.js proxy. Point at your running MCP server. |
+| `NEXT_PUBLIC_RPC_URL` | Yes | Soroban RPC endpoint |
+| `NEXT_PUBLIC_NETWORK_PASSPHRASE` | Yes | Stellar network passphrase |
+| `NEXT_PUBLIC_WALLET_WASM_HASH` | Yes | Smart wallet contract WASM hash |
+| `NEXT_PUBLIC_RELAYER_URL` | Yes | OpenZeppelin Relayer URL |
+| `NEXT_PUBLIC_RELAYER_API_KEY` | Yes | OpenZeppelin Relayer API key |
+
+### Testnet defaults
+
+```bash
+NEXT_PUBLIC_MCP_SERVER_URL=/mcp
+MCP_PROXY_TARGET=http://localhost:3000/mcp
+NEXT_PUBLIC_RPC_URL=https://soroban-testnet.stellar.org
+NEXT_PUBLIC_NETWORK_PASSPHRASE="Test SDF Network ; September 2015"
+NEXT_PUBLIC_WALLET_WASM_HASH=b3eba29c256a2458faff84fc872226d29df37ad05a6a1c0efe2a95817d6765ec
+NEXT_PUBLIC_RELAYER_URL=https://channels.openzeppelin.com/testnet
+NEXT_PUBLIC_RELAYER_API_KEY=your-oz-relayer-api-key-here
+```
+
+Get a free testnet OZ Relayer API key at [https://channels.openzeppelin.com/testnet/gen](https://channels.openzeppelin.com/testnet/gen).
+
+<Callout type="warning">
+`NEXT_PUBLIC_RELAYER_API_KEY` is exposed to the browser. For production, use a server-side proxy to protect your key, or rate-limit at the relayer level.
+</Callout>
+
+## Transaction Flow
+
+```
+User fills tool form
+      ↓
+client.simulate() → XDR preview + fee estimate
+      ↓
+User reviews TransactionModal (XDR viewer, fee)
+      ↓
+User confirms
+      ↓
+PasskeyKit creates / connects wallet
+      ↓
+passkeyKitSigner signs auth entries (WALLET_SIGNER_SECRET)
+OZ Relayer sponsors + submits transaction
+      ↓
+Result shown in UI (success / error toast)
+```
+
+## Wallet Setup
+
+On first visit, the app prompts the user to create or connect a smart wallet. The wallet is tied to the user's device passkey (biometric or security key).
+
+- **Create wallet** — deploys a new smart wallet contract using `NEXT_PUBLIC_WALLET_WASM_HASH`
+- **Connect wallet** — reconnects an existing wallet by scanning for the passkey
+
+The wallet contract ID is stored in `localStorage` and auto-reconnected on return visits.
+
+## Deploying Your Own WASM Hash
+
+The testnet WASM hash `b3eba29c256a2458faff84fc872226d29df37ad05a6a1c0efe2a95817d6765ec` was built from the [kalepail/passkey-kit](https://github.com/kalepail/passkey-kit) `next` branch and is already deployed on testnet.
+
+To deploy your own:
+
+```bash
+# Upload the wallet WASM
+stellar contract upload \
+  --wasm wallet.wasm \
+  --source your-key \
+  --network testnet
+```
+
+Set the returned hash in `NEXT_PUBLIC_WALLET_WASM_HASH`.
+
+## OZ Relayer Migration
+
+This template uses **passkey-kit v0.12.0** which replaced the deprecated Launchtube service with the OpenZeppelin Relayer.
+
+| Old (deprecated) | New |
+|---|---|
+| `LAUNCHTUBE_URL` | `NEXT_PUBLIC_RELAYER_URL` |
+| `LAUNCHTUBE_JWT` | `NEXT_PUBLIC_RELAYER_API_KEY` |
+| Launchtube endpoint | `https://channels.openzeppelin.com/testnet` |
+
+## Stellar SDK Note
+
+`@stellar/stellar-sdk` is pinned to `~14.4.0` in this template. Versions 14.6.1+ have a broken `../../package.json` import in `lib/minimal/bindings` that breaks Next.js builds. The template includes a `NormalModuleReplacementPlugin` in `next.config.ts` to work around this.
+
+## Vercel Deployment
+
+The template includes `vercel.json`. Deploy with:
+
+```bash
+vercel deploy --prod
+```
+
+Set all `NEXT_PUBLIC_*` variables in Vercel dashboard → Settings → Environment Variables. The Next.js proxy (`MCP_PROXY_TARGET`) is server-side and must also be set.

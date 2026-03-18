@@ -1,0 +1,349 @@
+---
+title: SDK API Reference
+---
+
+import { Callout } from 'nextra/components'
+
+# SDK API Reference
+
+Complete reference for `@stellar-mcp/client` v0.2.0.
+
+## `MCPClientOptions`
+
+Passed to `new MCPClient(options)` or `createMCPClient(options)`.
+
+```ts
+interface MCPClientOptions {
+  url: string;               // Full MCP server URL, e.g. 'http://localhost:3001/mcp'
+  networkPassphrase: string; // Stellar network passphrase (Networks.TESTNET / Networks.PUBLIC)
+  rpcUrl: string;            // Soroban RPC endpoint
+  timeout?: number;          // Request timeout in ms (default: 30 000)
+}
+```
+
+The connection is lazy — it opens on the first method call.
+
+---
+
+## `client.listTools()`
+
+Discover all tools the server exposes.
+
+```ts
+const tools = await client.listTools();
+// [{ name: 'deploy-token', description: '...', inputSchema: { ... } }, ...]
+```
+
+Returns `ToolInfo[]`:
+
+```ts
+interface ToolInfo {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;    // JSON Schema for tool arguments
+  outputSchema?: Record<string, unknown>;  // JSON Schema for the result
+}
+```
+
+---
+
+## `client.call(toolName, args?)`
+
+Call any MCP tool by name.
+
+```ts
+// Read-only tool
+const { data } = await client.call('get-token-count');
+
+// Write tool — xdr is extracted automatically
+const { data, xdr, simulationResult } = await client.call('deploy-token', {
+  deployer: 'GABC...',
+  config: { /* ... */ },
+});
+```
+
+Returns `CallResult<TData>`:
+
+```ts
+interface CallResult<TData = unknown> {
+  data: TData;                // Full parsed JSON from server
+  xdr?: string;               // Transaction XDR (write ops only)
+  simulationResult?: unknown; // Simulation metadata, if server includes it
+}
+```
+
+Throws `MCPToolError` if the server returns an error response.
+
+---
+
+## `client.simulate(toolName, args?)`
+
+Preview a transaction **without signing or submitting**. Returns the assembled XDR and estimated fee in stroops — useful for showing users the cost before asking them to confirm.
+
+```ts
+const preview = await client.simulate('deploy-token', {
+  deployer: 'GABC...',
+  config: { /* ... */ },
+});
+
+console.log(`Estimated fee: ${preview.fee} stroops`);
+
+// Only sign+submit if the user confirms:
+const { hash } = await client.signAndSubmit(preview.xdr!, {
+  signer: secretKeySigner(process.env.SECRET_KEY!),
+});
+const result = await client.waitForConfirmation(hash);
+```
+
+Returns `SimulateResult<TData>`:
+
+| Field | Type | Description |
+|---|---|---|
+| `xdr` | `string \| undefined` | Assembled transaction XDR, ready to sign |
+| `fee` | `string \| undefined` | Estimated fee in stroops |
+| `simulationResult` | `TData \| undefined` | Decoded return value (for read-only tools) |
+
+For **read-only tools** (`get-admin`, `get-token-count`, etc.) `xdr` and `fee` are `undefined`.
+
+---
+
+## `client.signAndSubmit(xdr, options)`
+
+Sign and submit a transaction using a signer adapter.
+
+```ts
+const result = await client.signAndSubmit(xdr!, {
+  signer: secretKeySigner(process.env.SECRET_KEY!),
+});
+// { hash: 'a1b2...', status: 'SUCCESS', result: ... }
+```
+
+Returns `SubmitResult`:
+
+```ts
+interface SubmitResult {
+  hash: string;
+  status: string;   // 'SUCCESS' | 'FAILED' | ...
+  result?: unknown;
+}
+```
+
+---
+
+## `client.waitForConfirmation(hash)`
+
+Poll the Soroban RPC until a transaction hash confirms.
+
+```ts
+const result = await client.waitForConfirmation('a1b2c3...');
+```
+
+Useful if you submitted a transaction separately and want to wait for finality.
+
+---
+
+## `client.close()`
+
+Close the transport connection. Safe to call multiple times.
+
+---
+
+## Signers
+
+Signers are pluggable adapters that implement the `Signer` interface. Pass one to `client.signAndSubmit()`.
+
+### `secretKeySigner(secretKey)` — Node.js & server-side
+
+Delegates signing and submission to the MCP server's built-in `sign-and-submit` tool. The server handles auth entry signing, fresh sequence numbers, and RPC submission. The secret key is passed per-request and never stored.
+
+<Callout type="warning">
+`secretKeySigner` transmits the secret key to the MCP server's `sign-and-submit` tool. Only use this with trusted, local, or TLS-secured servers. For untrusted servers, prefer `connectFreighter()` which signs client-side.
+</Callout>
+
+```ts
+import { secretKeySigner } from '@stellar-mcp/client';
+
+const result = await client.signAndSubmit(xdr!, {
+  signer: secretKeySigner(process.env.SECRET_KEY!),
+});
+```
+
+---
+
+### `connectFreighter(networkPassphrase)` — Browser (recommended)
+
+Connects to the Freighter wallet **once** and returns both the wallet address and a pre-connected signer. The signer will not re-prompt for the address on each `signAndSubmit()` call.
+
+Requires `@creit.tech/stellar-wallets-kit` as a peer dependency.
+
+```ts
+import { connectFreighter } from '@stellar-mcp/client';
+import { Networks } from '@stellar/stellar-sdk';
+
+// Connect once at startup or on button click
+const { address, signer } = await connectFreighter(Networks.TESTNET);
+
+// Show address in your UI
+headerEl.textContent = address;
+
+// Later, when user submits a transaction:
+const result = await client.signAndSubmit(xdr!, { signer });
+```
+
+Returns `FreighterConnection`:
+
+```ts
+interface FreighterConnection {
+  address: string;  // wallet public key (G...)
+  signer:  Signer;  // pre-connected, pass to signAndSubmit()
+}
+```
+
+---
+
+### `freighterSigner(options?)` — Browser (stateless)
+
+The stateless variant — re-connects on every `signAndSubmit()` call. For browser dApps, prefer `connectFreighter()` above.
+
+Requires `@creit.tech/stellar-wallets-kit` as a peer dependency.
+
+```ts
+import { freighterSigner } from '@stellar-mcp/client';
+
+const result = await client.signAndSubmit(xdr!, {
+  signer: freighterSigner(),
+});
+```
+
+---
+
+### `passkeyKitSigner(options)` — PasskeyKit smart wallets
+
+Delegates to the MCP server's `sign-and-submit` tool with a smart wallet contract ID. The server reads its `WALLET_SIGNER_SECRET` for auth entry signing.
+
+Requires `passkey-kit` as a peer dependency on the MCP server side.
+
+```ts
+import { passkeyKitSigner } from '@stellar-mcp/client';
+
+const result = await client.signAndSubmit(xdr!, {
+  signer: passkeyKitSigner({
+    walletContractId: 'CABC...',
+    feePayerSecret: process.env.FEE_PAYER_SECRET!,
+  }),
+});
+```
+
+---
+
+### Custom Signers
+
+Implement the `Signer` interface to add your own signing logic:
+
+```ts
+import type { Signer, SignerContext, SubmitResult } from '@stellar-mcp/client';
+
+const mySigner: Signer = {
+  async execute(xdr: string, context: SignerContext): Promise<SubmitResult> {
+    // context provides: rpcUrl, networkPassphrase, mcpCall()
+    const signedXdr = await mySigningLib.sign(xdr, context.networkPassphrase);
+    return { hash: '...', status: 'SUCCESS' };
+  },
+};
+```
+
+---
+
+## Schema Utilities
+
+### `ArgDef`
+
+```ts
+interface ArgDef {
+  name: string;
+  path: string[];      // e.g. ['config', 'admin'] for nested fields
+  type: string;        // 'string' | 'number' | 'boolean' | 'object' | 'array' | 'enum' | 'any'
+  description: string;
+  required: boolean;
+  enum?: string[];     // present for enum / discriminated union fields
+  group?: string;      // section header for nested object groups
+  nullable?: boolean;
+  unionTag?: boolean;  // if true, value must be wrapped as { tag: value }
+}
+```
+
+### `extractArgs(tool)`
+
+Flattens a tool's `inputSchema` into a sorted `ArgDef[]`. Required args come before optional. Handles nested objects (recursively expanded with path tracking), discriminated unions, nullable types, and enums.
+
+### `buildToolArgs(args, collected)`
+
+Reconstructs the nested args object from a flat key→value map. Automatically wraps discriminated union values as `{ tag: value }`.
+
+### `parseArgValue(value, arg)`
+
+Coerces a user-typed string to the correct JS type for the given `ArgDef`:
+- `'42'` + `number` → `42`
+- `'true'` + `boolean` → `true`
+- `'{"a":1}'` + `object` → `{ a: 1 }`
+- `''` + `nullable string` → `null`
+
+### `isReadOperation(toolName)`
+
+Heuristic that returns `true` for tool names starting with: `get`, `list`, `query`, `fetch`, `find`, `search`, `is`, `has`, `check`, `count`, `show`, `view`, `read`.
+
+---
+
+## Error Types
+
+All SDK errors extend `MCPClientError`:
+
+| Class | Thrown when |
+|---|---|
+| `MCPConnectionError` | Cannot connect to MCP server (transport failure, timeout, handshake error) |
+| `MCPToolError` | Server returns `isError: true` — includes `toolName` |
+| `TransactionError` | Transaction submission or confirmation fails — includes `hash` when available |
+
+```ts
+import {
+  MCPConnectionError,
+  MCPToolError,
+  TransactionError,
+} from '@stellar-mcp/client';
+
+try {
+  const { xdr } = await client.call('deploy-token', params);
+  await client.signAndSubmit(xdr!, { signer });
+} catch (err) {
+  if (err instanceof MCPToolError) {
+    console.error(`Tool '${err.toolName}' failed:`, err.message);
+  } else if (err instanceof MCPConnectionError) {
+    console.error('Could not reach MCP server:', err.message);
+  } else if (err instanceof TransactionError) {
+    console.error('Transaction failed:', err.message, 'hash:', err.hash);
+  }
+}
+```
+
+---
+
+## Transport
+
+The client automatically negotiates the transport protocol:
+
+1. **StreamableHTTP** (preferred) — single endpoint, stateless HTTP POST
+2. **SSE** (fallback) — legacy Server-Sent Events transport
+
+Both protocols use the same URL. Generated MCP servers support both when started with `USE_HTTP=true`.
+
+---
+
+## Logging
+
+The SDK ships a built-in logger that is silent by default. Enable it for debugging:
+
+```ts
+import { logger } from '@stellar-mcp/client';
+
+logger.setLevel('debug'); // 'debug' | 'info' | 'warn' | 'error' | 'silent'
+```

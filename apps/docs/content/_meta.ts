@@ -14,6 +14,12 @@ export default {
   'policy-cli': {
     title: 'Policy CLI',
   },
+  sdk: {
+    title: 'SDK',
+  },
+  templates: {
+    title: 'Templates',
+  },
   examples: {
     title: 'Examples',
   },

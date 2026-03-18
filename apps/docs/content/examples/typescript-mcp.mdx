@@ -10,7 +10,7 @@ This example shows a TypeScript MCP server generated from a Token Factory contra
 
 ```bash
 stellar mcp generate \
-    --contract-id CAHLJEQUCNTV7JPAPCMLCBIHOX7FFB57DUARJ6XGTW27FPCVKKY7JM2A \
+    --contract-id CBX7HKQ6WIOYAHS6SLL7Y3MRPTYOSGJTDL6XXYYOTEWEN3PRGK3DSVZG \
     --network testnet \
     --lang typescript \
     --name my-token \
@@ -75,7 +75,7 @@ import * as tools from './tools/my-token.js';
 import * as schemas from './schemas/my-token.js';
 
 const CONTRACT_ID = process.env.CONTRACT_ID
-    || 'CAHLJEQUCNTV7JPAPCMLCBIHOX7FFB57DUARJ6XGTW27FPCVKKY7JM2A';
+    || 'CBX7HKQ6WIOYAHS6SLL7Y3MRPTYOSGJTDL6XXYYOTEWEN3PRGK3DSVZG';
 const RPC_URL = process.env.RPC_URL
     || 'https://soroban-testnet.stellar.org';
 const NETWORK_PASSPHRASE = process.env.NETWORK_PASSPHRASE
@@ -206,7 +206,7 @@ pnpm install
 pnpm build
 
 # Set environment variables
-export CONTRACT_ID=CAHLJEQUCNTV7JPAPCMLCBIHOX7FFB57DUARJ6XGTW27FPCVKKY7JM2A
+export CONTRACT_ID=CBX7HKQ6WIOYAHS6SLL7Y3MRPTYOSGJTDL6XXYYOTEWEN3PRGK3DSVZG
 export RPC_URL=https://soroban-testnet.stellar.org
 export NETWORK_PASSPHRASE="Test SDF Network ; September 2015"
 
@@ -223,7 +223,7 @@ pnpm start
             "command": "node",
             "args": ["/path/to/my-token-mcp/dist/index.js"],
             "env": {
-                "CONTRACT_ID": "CAHLJEQUCNTV7JPAPCMLCBIHOX7FFB57DUARJ6XGTW27FPCVKKY7JM2A",
+                "CONTRACT_ID": "CBX7HKQ6WIOYAHS6SLL7Y3MRPTYOSGJTDL6XXYYOTEWEN3PRGK3DSVZG",
                 "RPC_URL": "https://soroban-testnet.stellar.org",
                 "NETWORK_PASSPHRASE": "Test SDF Network ; September 2015"
             }

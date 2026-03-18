@@ -1,0 +1,119 @@
+---
+title: CLI Agent Template
+---
+
+import { Steps, Callout } from 'nextra/components'
+
+# CLI Agent Template
+
+A terminal agent for Stellar MCP servers. Supports a guided wizard, interactive REPL, and one-shot command mode — useful for developers who want to interact with a Stellar contract directly from the terminal.
+
+## Setup
+
+<Steps>
+
+### Clone and install
+
+```bash
+cd stellar-mcp/templates/cli-agent
+npm install
+cp .env.example .env
+```
+
+### Configure environment
+
+Edit `.env`:
+
+```bash
+MCP_SERVER_URL=http://localhost:3000/mcp
+RPC_URL=https://soroban-testnet.stellar.org
+NETWORK_PASSPHRASE="Test SDF Network ; September 2015"
+SIGNER_SECRET=          # Optional — set to sign write operations
+```
+
+### Run
+
+```bash
+# Guided wizard (default)
+npm run dev
+
+# Interactive REPL
+npm run dev -- --interactive
+
+# One-shot commands
+npm run dev -- list
+npm run dev -- call get-admin
+```
+
+</Steps>
+
+## Environment Variables
+
+| Variable | Required | Description |
+|---|---|---|
+| `MCP_SERVER_URL` | Yes | URL of the MCP server |
+| `RPC_URL` | Yes | Soroban RPC endpoint |
+| `NETWORK_PASSPHRASE` | Yes | Stellar network passphrase |
+| `SIGNER_SECRET` | No | Stellar secret key (S…). If unset, write ops show XDR but do not submit. |
+
+## Commands
+
+| Command | Description |
+|---|---|
+| `stellar-mcp-cli` | Launch guided wizard (select tool → fill args → execute) |
+| `stellar-mcp-cli --interactive` | Stay in interactive REPL after each operation |
+| `stellar-mcp-cli list` | List all tools on the server |
+| `stellar-mcp-cli list --read-only` | Show only read tools |
+| `stellar-mcp-cli list --write-only` | Show only write tools |
+| `stellar-mcp-cli list --json` | Output tool list as JSON |
+| `stellar-mcp-cli call [tool]` | Call a tool (omit name to pick interactively) |
+| `stellar-mcp-cli call [tool] --args <json>` | Call with args as a JSON string |
+| `stellar-mcp-cli call [tool] --json` | Output result as JSON |
+
+## One-Shot Examples
+
+```bash
+# Read operation
+stellar-mcp-cli call get-admin --json
+
+# Write operation with inline key=value args
+stellar-mcp-cli call deploy-token --deployer GABC... --config.name MyToken --config.symbol MTK
+
+# Write operation with JSON args
+stellar-mcp-cli call deploy-token --args '{"deployer":"GABC...","config":{"name":"MyToken","symbol":"MTK","decimals":7}}'
+```
+
+## Interactive Mode
+
+```bash
+stellar-mcp-cli --interactive
+```
+
+Stays alive after each operation, letting you chain multiple calls without restarting. Uses `@clack/prompts` for a polished terminal UI — spinners, selection menus, and text inputs.
+
+## JSON Output
+
+Add `--json` to any command to get machine-readable output — useful for piping into `jq` or other tools:
+
+```bash
+stellar-mcp-cli list --json | jq '.[].name'
+stellar-mcp-cli call get-admin --json | jq '.data'
+```
+
+Without `--json`, the CLI renders a human-friendly table or formatted output.
+
+## Build
+
+```bash
+# Build to dist/
+npm run build
+
+# Run compiled binary
+node dist/index.js list
+```
+
+## Customization
+
+- **Add pre-configured servers** — edit `src/constants.ts` to add known MCP server URLs
+- **Extend commands** — add Commander subcommands in `src/commands/`
+- **Change UI theme** — `src/ui.ts` controls chalk colors and spinner styles
