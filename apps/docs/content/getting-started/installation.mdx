@@ -2,11 +2,15 @@
 title: Installation
 ---
 
-import { Steps } from 'nextra/components'
+import { Steps, Callout } from 'nextra/components'
 
 # Installation
 
-Install the Stellar MCP Plugins from source using Cargo.
+Install the Stellar MCP Plugins from source using Cargo. Both plugins install globally to `~/.cargo/bin/` and are available system-wide as Stellar CLI plugins.
+
+<Callout type="info">
+After installation, the CLIs are available globally — no need to be inside the project directory. Run `stellar mcp --help` or `stellar policy --help` from anywhere.
+</Callout>
 
 ## Installing stellar-mcp-generator
 
@@ -86,7 +90,7 @@ Installed Plugins:
 
 ## Installation Locations
 
-The plugins are installed to your Cargo bin directory:
+The plugins are installed globally to your Cargo bin directory:
 
 ```bash
 # Default location
@@ -95,6 +99,18 @@ The plugins are installed to your Cargo bin directory:
 
 # Check your Cargo bin path
 echo $HOME/.cargo/bin
+```
+
+These binaries are automatically detected by the Stellar CLI as plugins. You can also run them directly:
+
+```bash
+# As Stellar CLI plugins (recommended)
+stellar mcp generate --help
+stellar policy wizard --help
+
+# Or as standalone binaries
+stellar-mcp generate --help
+stellar-policy wizard --help
 ```
 
 ## Updating Plugins
