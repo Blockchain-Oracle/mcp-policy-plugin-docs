@@ -121,24 +121,11 @@ The template includes a production-ready `Dockerfile` for self-hosted deployment
 # Build the image
 docker build -t my-stellar-bot .
 
-# Run with environment variables
-docker run -d \
-  -e TELEGRAM_BOT_TOKEN=<your-token> \
-  -e MCP_SERVER_URL=https://your-mcp-server/mcp \
-  -e NETWORK_PASSPHRASE="Test SDF Network ; September 2015" \
-  -e RPC_URL=https://soroban-testnet.stellar.org \
-  -e SIGNER_SECRET=<optional-secret-key> \
-  -e AI_ENABLED=true \
-  -e ANTHROPIC_API_KEY=<optional-key> \
-  --name stellar-bot \
-  my-stellar-bot
+# Run using your .env file
+docker run -d --env-file .env --name stellar-bot my-stellar-bot
 ```
 
 The bot uses long-polling mode — no port mapping needed. It polls Telegram's servers directly.
-
-<Callout type="info">
-For production, use a `.env` file: `docker run --env-file .env my-stellar-bot`
-</Callout>
 
 ## Vercel Deployment
 

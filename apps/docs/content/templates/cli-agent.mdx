@@ -102,11 +102,32 @@ stellar-mcp-cli call get-admin --json | jq '.data'
 
 Without `--json`, the CLI renders a human-friendly table or formatted output.
 
+## Global Installation
+
+Build and install the CLI globally so you can run `stellar-mcp-cli` from anywhere:
+
+```bash
+pnpm build
+npm install -g .
+```
+
+After installation, the `stellar-mcp-cli` command is available system-wide:
+
+```bash
+stellar-mcp-cli list
+stellar-mcp-cli call get-admin
+stellar-mcp-cli --interactive
+```
+
+<Callout type="info">
+During development, skip the global install and use `pnpm dev` instead — it runs the CLI directly via `tsx`.
+</Callout>
+
 ## Build
 
 ```bash
 # Build to dist/
-npm run build
+pnpm build
 
 # Run compiled binary
 node dist/index.js list
